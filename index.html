@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ドボン — オンライン対戦</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-IAYS6Ue7cw7QecTAtKLxRGNReAu4TAmp0WhzabKenYw=' https://cdn.jsdelivr.net; style-src 'sha256-upFWxBO5qn1f7Fg6xygCz4Bq5zJoFXpUm4dtXCYLfaY='; img-src data:; connect-src wss: https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-c7wRvYCkZTNJ3JTOOOmorK+jTMxd7r+dv9wNdf4OLRk=' https://cdn.jsdelivr.net; style-src 'sha256-Z2Rx/gWMALWLeL6CB8vCSV88KqwPSrEVhe/2EOGHYuE='; img-src data:; connect-src wss: https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3QgeD0iMTAiIHk9IjQiIHdpZHRoPSI0NCIgaGVpZ2h0PSI1NiIgcng9IjYiIGZpbGw9IiNmYmY3ZWMiIHN0cm9rZT0iIzEzNTczYSIgc3Ryb2tlLXdpZHRoPSIzIi8+PHRleHQgeD0iMzIiIHk9IjQ0IiBmb250LXNpemU9IjMyIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjYzQyNTJmIj7imaU8L3RleHQ+PC9zdmc+Cg==" type="image/svg+xml">
   <style>:root {
@@ -466,6 +466,59 @@ select { font: inherit; font-size: 13px; padding: 4px 6px; border-radius: 6px; }
   .kfx.play .kfx-rays, .kfx.play .kfx-rings span, .kfx.play .kfx-part, .kfx.play .kfx-slash, .kfx.play .kfx-flash, .kfx.play .kfx-main, #screen-game.kfx-shake, .kfx.play .kfx-before { animation: none; }
   .kfx.play .kfx-title { animation: kfxSub 2s ease .2s forwards; }
 }
+
+/* ============ ドボン宣言の演出 ============ */
+.dfx { position: fixed; inset: 0; z-index: 40; pointer-events: none; overflow: hidden; }
+.dfx-flash { position: absolute; inset: 0; opacity: 0; background: radial-gradient(circle at var(--cx) var(--cy), rgba(255, 80, 60, .5), rgba(120, 0, 0, .15) 30%, transparent 55%); }
+.dfx.hiki .dfx-flash { background: radial-gradient(circle at var(--cx) var(--cy), rgba(255, 236, 170, .85), rgba(255, 150, 40, .35) 28%, rgba(120, 40, 0, .15) 50%, transparent 70%); }
+.dfx-center { position: absolute; left: var(--cx); top: var(--cy); width: 0; height: 0; }
+.dfx-rays {
+  position: absolute; left: -80vmax; top: -80vmax; width: 160vmax; height: 160vmax; opacity: 0; display: none;
+  background: repeating-conic-gradient(rgba(255, 200, 100, 0) 0deg 7deg, rgba(255, 200, 100, .3) 7deg 9deg);
+  -webkit-mask: radial-gradient(circle, transparent 3%, #000 10%, transparent 34%);
+  mask: radial-gradient(circle, transparent 3%, #000 10%, transparent 34%);
+}
+.dfx.hiki .dfx-rays { display: block; }
+.dfx-rings { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.dfx-rings span {
+  position: absolute; left: -55px; top: -55px; width: 110px; height: 110px; border-radius: 50%; opacity: 0;
+  border: 4px solid rgba(255, 100, 80, .95); box-shadow: 0 0 24px rgba(255, 80, 60, .7);
+}
+.dfx-rings span:nth-child(3) { display: none; }
+.dfx.hiki .dfx-rings span { border-color: rgba(255, 214, 120, .95); box-shadow: 0 0 30px rgba(255, 180, 70, .85), inset 0 0 20px rgba(255, 180, 70, .5); }
+.dfx.hiki .dfx-rings span:nth-child(3) { display: block; }
+.dfx-parts { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+
+.dfx.play .dfx-flash { animation: kfxFlash .6s ease-out forwards; }
+.dfx.hiki.play .dfx-flash { animation: kfxFlash .8s ease-out forwards; }
+.dfx.play .dfx-rings span { animation: dfxRing .75s cubic-bezier(.1, .6, .3, 1) forwards; }
+.dfx.play .dfx-rings span:nth-child(2) { animation-delay: .12s; }
+.dfx.hiki.play .dfx-rings span { animation-duration: 1s; }
+.dfx.hiki.play .dfx-rings span:nth-child(3) { animation-delay: .26s; }
+.dfx.play .kfx-part { animation: kfxPart .85s cubic-bezier(.15, .7, .3, 1) var(--d) forwards; }
+.dfx.hiki.play .kfx-part { animation-duration: 1.2s; }
+.dfx.hiki.play .dfx-rays { animation: dfxRays 1.3s ease-out forwards; }
+#screen-game.dfx-shake { animation: dfxShake .35s ease; }
+#screen-game.dfx-shake-hiki { animation: kfxShake .5s ease; }
+@keyframes dfxRing { 0% { opacity: 1; transform: scale(.25); } 100% { opacity: 0; transform: scale(5.5); border-width: 1px; } }
+@keyframes dfxRays { 0% { opacity: 0; transform: rotate(0) scale(.5); } 20% { opacity: 1; } 100% { opacity: 0; transform: rotate(35deg) scale(1.1); } }
+@keyframes dfxShake {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-6px, 3px); } 40% { transform: translate(5px, -4px); } 60% { transform: translate(-3px, 2px); } 80% { transform: translate(2px, -1px); }
+}
+/* 引きドボンの文字は金色に光らせる */
+.banner-stamp.hiki {
+  background: linear-gradient(180deg, #fffbe6 0%, #ffd76a 45%, #e08a25 55%, #fff1b8 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 12px rgba(255, 180, 70, .9)) drop-shadow(0 3px 0 rgba(90, 30, 0, .8));
+  animation: stamp .45s cubic-bezier(.2, 1.6, .4, 1), hikiGlow .9s ease-in-out .45s 2;
+}
+@keyframes hikiGlow { 50% { filter: drop-shadow(0 0 26px rgba(255, 210, 110, 1)) drop-shadow(0 3px 0 rgba(90, 30, 0, .8)); transform: scale(1.06); } }
+.dobon-banner:has(.banner-stamp.hiki) { border-color: var(--gold); box-shadow: 0 0 40px rgba(255, 190, 80, .5), 0 10px 40px rgba(0, 0, 0, .5); }
+@media (prefers-reduced-motion: reduce) {
+  .dfx.play .dfx-rings span, .dfx.play .kfx-part, .dfx.hiki.play .dfx-rays, #screen-game.dfx-shake, #screen-game.dfx-shake-hiki, .banner-stamp.hiki { animation: none; }
+}
+.dobon-banner:has(.banner-stamp.hiki) #dobon-bar { background: var(--gold); }
 </style>
   <script type="module">// ---- game.js
 /**
@@ -1528,7 +1581,11 @@ function renderGame() {
   // 複数ドボン受付中の表示（ボタンは押せるように画面をふさがない）
   const db = $('dobon-banner');
   db.hidden = g.phase !== 'dobon';
-  $('banner-stamp').textContent = g.hikiDecl && g.hikiDecl.includes(g.dobons[0]) ? '引きドボン！' : 'ドボン！';
+  const firstHiki = Boolean(g.hikiDecl && g.hikiDecl.includes(g.dobons[0]));
+  $('banner-stamp').textContent = firstHiki ? '引きドボン！' : 'ドボン！';
+  $('banner-stamp').classList.toggle('hiki', firstHiki);
+  if (g.phase === 'dobon' && prevPhase !== 'dobon') playDobonFx(firstHiki);
+  prevPhase = g.phase;
   if (g.phase === 'dobon') {
     $('dobon-names').textContent = `${dobonNames(g.dobons, g.hikiDecl)} → ${nameOf(lp.by)}（${cardText(lp.cards[lp.cards.length - 1])}）`;
     dobonEnd = now + g.dobonMs;
@@ -1592,6 +1649,38 @@ function renderLog(log) {
     }
     ol.append(li);
   }
+}
+
+/** ドボン宣言の演出：通常は小さめ、引きドボンはちょい派手。画面はふさがない */
+let prevPhase = null;
+function playDobonFx(hiki) {
+  const fx = $('dobon-fx');
+  const r = $('dobon-banner').getBoundingClientRect();
+  fx.style.setProperty('--cx', `${r.left + r.width / 2}px`);
+  fx.style.setProperty('--cy', `${r.top + r.height * 0.35}px`);
+  fx.classList.toggle('hiki', hiki);
+  const parts = $('dfx-parts'); parts.replaceChildren();
+  const colors = hiki ? ['#ffd76a', '#ffb347', '#fff3c4', '#ff8a3d', '#ffffff'] : ['#ff5a4e', '#ffffff', '#ff9a8f'];
+  const n = hiki ? 34 : 18;
+  for (let i = 0; i < n; i++) {
+    const p = el('span', 'kfx-part');
+    const ang = Math.random() * Math.PI * 2;
+    const dist = (hiki ? 170 : 110) + Math.random() * (hiki ? 260 : 160);
+    p.style.setProperty('--dx', `${Math.cos(ang) * dist}px`);
+    p.style.setProperty('--dy', `${Math.sin(ang) * dist}px`);
+    p.style.setProperty('--r', `${Math.floor(Math.random() * 540 - 270)}deg`);
+    p.style.setProperty('--d', `${Math.floor(Math.random() * 90)}ms`);
+    p.style.setProperty('--c', colors[i % colors.length]);
+    p.style.setProperty('--s', `${(hiki ? 6 : 5) + Math.random() * (hiki ? 9 : 6)}px`);
+    parts.append(p);
+  }
+  const game = $('screen-game');
+  fx.hidden = false;
+  for (const e of [fx, game]) { e.classList.remove('play', 'dfx-shake', 'dfx-shake-hiki'); void e.offsetWidth; }
+  fx.classList.add('play');
+  game.classList.add(hiki ? 'dfx-shake-hiki' : 'dfx-shake');
+  clearTimeout(playDobonFx.t);
+  playDobonFx.t = setTimeout(() => { fx.hidden = true; fx.classList.remove('play'); game.classList.remove('dfx-shake', 'dfx-shake-hiki'); }, hiki ? 1500 : 1100);
 }
 
 /** ドボン返し（引きドボン返し）成功の演出：約2.6秒、全員の画面で再生 */
@@ -2413,6 +2502,16 @@ $('btn-copy').addEventListener('click', async () => {
     </div>
   </div>
 
+  <!-- ドボン宣言の演出（通常／引きドボン） -->
+  <div id="dobon-fx" class="dfx" hidden aria-hidden="true">
+    <div class="dfx-flash"></div>
+    <div class="dfx-center">
+      <div class="dfx-rays"></div>
+      <div class="dfx-rings"><span></span><span></span><span></span></div>
+      <div id="dfx-parts" class="dfx-parts"></div>
+    </div>
+  </div>
+
   <!-- ドボン返し成功の演出 -->
   <div id="kaeshi-fx" class="kfx" hidden aria-hidden="true">
     <div class="kfx-bg"></div>
@@ -2430,7 +2529,7 @@ $('btn-copy').addEventListener('click', async () => {
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <footer class="footer-status">
-    <span id="version">v3.1.0 ・ build 2026-11-15 03:13</span>
+    <span id="version">v3.2.0 ・ build 2026-11-15 03:17</span>
     <span id="netstat"></span>
     <button id="neterr" class="neterr" type="button" hidden>⚠ 接続エラーあり（クリックで詳細）</button>
   </footer>
