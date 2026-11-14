@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ドボン — オンライン対戦</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-fi+oujrR935k9P60KSYheDmf/P59I2LSTaQjeR3uaGo=' https://cdn.jsdelivr.net; style-src 'sha256-d2hSDLn3LvLPg4NG8MMnoF1HVZbIGasvS/23ESHHTgc='; img-src data:; connect-src wss: https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-SPVipLz2t0yXHDSWFN6uKDvVoe3i1KRQ2zEmGNEYycs=' https://cdn.jsdelivr.net; style-src 'sha256-GeZOXNlA77ljiPV/mR+D56DeWBbo4I5rI0Nv6rdVEZQ='; img-src data:; connect-src wss: https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3QgeD0iMTAiIHk9IjQiIHdpZHRoPSI0NCIgaGVpZ2h0PSI1NiIgcng9IjYiIGZpbGw9IiNmYmY3ZWMiIHN0cm9rZT0iIzEzNTczYSIgc3Ryb2tlLXdpZHRoPSIzIi8+PHRleHQgeD0iMzIiIHk9IjQ0IiBmb250LXNpemU9IjMyIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjYzQyNTJmIj7imaU8L3RleHQ+PC9zdmc+Cg==" type="image/svg+xml">
   <style>:root {
@@ -362,6 +362,11 @@ select { font: inherit; font-size: 13px; padding: 4px 6px; border-radius: 6px; }
   .turn-announce.play .ta-ring, .turn-announce.play .spark { animation: none; }
   .turn-announce.play .ta-text { animation: taSub 1.45s ease forwards; }
 }
+
+.stamp { white-space: nowrap; }
+.stamp.long { font-size: 46px; letter-spacing: .04em; }
+.result-points b { white-space: nowrap; }
+.transfer-line { line-height: 1.6; }
 </style>
   <script type="module">// ---- game.js
 /**
@@ -396,7 +401,8 @@ const DEFAULT_RULES = Object.freeze({
   wild8: true, // 8：いつでも出せてマーク（またはマーク以外）を指定
   reverseJ: true, // J：順番を逆回り
   stack: true, // 同じ数字の重ね出し
-  kaeshi: true, // ドボン返し・引きドボン
+  kaeshi: true, // ドボン返し・引きドボン返し
+  hikiDobon: true, // 引いてからドボンすると「引きドボン」（×2）
   bakiri: true, // 自分の出したカードが一周したら場が切れて何でも出せる
   otetsuki: true, // 間違ったドボンは1枚ドロー
   hint: false, // ドボンできるときにボタンを光らせる（初心者向け）
@@ -448,8 +454,9 @@ function shuffle(a) {
 const MULTIPLIERS = {
   tanki: { x: 2, label: '単騎ドボン（手札1枚）' },
   kaeshi: { x: 2, label: 'ドボン返し' },
-  hiki: { x: 2, label: '引きドボン成功' },
-  burst: { x: 2, label: '引きドボン失敗' },
+  hikiDobon: { x: 2, label: '引きドボン' },
+  hiki: { x: 2, label: '引きドボン返し' }, // 成功・失敗どちらにも掛かる
+  burst: { x: 2, label: '引きドボン返し失敗' },
   jokerHand: { x: 2, label: 'ジョーカー入りドボン（1枚につき）' },
 };
 
@@ -482,6 +489,8 @@ class DobonGame {
     this.lockUntil = 0;
     this.phase = 'playing';
     this.dobons = []; // ドボン宣言者（宣言順）
+    this.drewSince = []; // 最後にカードが出てから山札を引いた人
+    this.hikiDecl = []; // 引いてからドボンした人（引きドボン）
     this.dobonUntil = 0;
     this.counter = null;
     this.result = null;
@@ -582,6 +591,8 @@ class DobonGame {
     return got;
   }
 
+  _markDrew(p) { if (!this.drewSince.includes(p)) this.drewSince.push(p); }
+
   _checkTurn(p, now) {
     if (this.phase === 'dobon' || this.phase === 'counter') return 'ドボンの処理中です';
     if (this.phase !== 'playing') return 'ゲームは終了しています';
@@ -622,6 +633,7 @@ class DobonGame {
     this.declaredNot = wild ? not === true : false;
     this.lastPlay = { by: p, cards: ids };
     this.sinceTurns = 0;
+    this.drewSince = [];
     this.lockUntil = now + DOBON_WINDOW_MS;
     this._pushLog({ k: 'play', p, cards: ids, suit: wild ? suit : undefined, not: wild && not === true ? true : undefined, free: free || undefined });
     this._advance(1 + Math.min(skips, this.n - 1));
@@ -634,6 +646,7 @@ class DobonGame {
     if (err) return { ok: false, err };
     if (this.pendingDraw > 0) {
       const got = this._drawN(p, this.pendingDraw);
+      this._markDrew(p);
       this._pushLog({ k: 'penalty', p, n: got });
       this.pendingDraw = 0;
       this.noPass[p] = false; // ペナルティで手番を消化
@@ -643,6 +656,7 @@ class DobonGame {
     }
     this.hasDrawn = true;
     if (this._drawN(p, 1) === 0) return { ok: false, err: '山札がありません。パスしてください' };
+    this._markDrew(p);
     const last = this.log[this.log.length - 1];
     if (last && last.k === 'draw' && last.p === p) last.n += 1; // 連続ドローはログをまとめる
     else this._pushLog({ k: 'draw', p, n: 1 });
@@ -683,7 +697,9 @@ class DobonGame {
       return { ok: true, notice: got ? `お手つき！ 合計が ${target} ではないので1枚引きました` : 'お手つき！（山札がないので引けませんでした）' };
     }
     this.dobons.push(p);
-    this._pushLog({ k: 'dobon', p, target: lp.by });
+    const hiki = this.rules.hikiDobon && this.drewSince.includes(p);
+    if (hiki) this.hikiDecl.push(p);
+    this._pushLog({ k: 'dobon', p, target: lp.by, hiki: hiki || undefined });
     if (this.phase === 'playing') {
       this.phase = 'dobon';
       this.dobonUntil = now + DOBON_MULTI_MS;
@@ -737,7 +753,8 @@ class DobonGame {
       let from = victim; let to = d;
       if (type === 'kaeshi') { keys.push('kaeshi'); from = d; to = victim; }
       if (type === 'hiki') { keys.push('hiki'); from = d; to = victim; }
-      if (type === 'burst') keys.push('burst');
+      if (type === 'burst') keys.push('hiki', 'burst'); // 失敗は「引きドボン」と「失敗」が重なる
+      if (this.hikiDecl.includes(d)) keys.push('hikiDobon'); // 引きドボンの勝負は、返されても重なる
       if (this.hands[to].length === 1) keys.push('tanki');
       const mults = keys.map((k) => ({ k, ...MULTIPLIERS[k] }));
       // ジョーカーは持っている枚数だけ ×2
@@ -750,7 +767,7 @@ class DobonGame {
     const victimLost = type === 'dobon' || type === 'burst';
     this.phase = 'ended';
     this.result = {
-      type, victim, declarers: [...this.dobons], card, target,
+      type, victim, declarers: [...this.dobons], hikiDecl: [...this.hikiDecl], card, target,
       drawn: this.counter ? this.counter.drawn : [],
       transfers,
       loser: victimLost ? victim : this.dobons[0], // 次ラウンドの親
@@ -843,6 +860,7 @@ class DobonGame {
       lastPlay: this.lastPlay,
       target: this.target(),
       dobons: this.dobons,
+      hikiDecl: this.hikiDecl,
       dobonMs: this.phase === 'dobon' ? Math.max(0, this.dobonUntil - now) : 0,
       playable: myTurn ? this.hands[p].filter((id) => this.canPlayCard(p, id)) : [],
       counter: this.phase === 'counter'
@@ -868,6 +886,8 @@ class DobonGame {
     g.reshuffles = o.reshuffles || 0;
     g.jokerFirst = Boolean(o.jokerFirst);
     g.firstPlayed = Boolean(o.firstPlayed);
+    g.drewSince = Array.isArray(o.drewSince) ? o.drewSince : [];
+    g.hikiDecl = Array.isArray(o.hikiDecl) ? o.hikiDecl : [];
     return g;
   }
 }
@@ -1128,7 +1148,8 @@ const RULE_DEFS = [
   { k: 'wild8', name: '8：ワイルド', desc: 'いつでも出せて、次のマークを指定できる' },
   { k: 'reverseJ', name: 'J：リバース', desc: '順番が逆回りになる' },
   { k: 'stack', name: '同じ数字の重ね出し', desc: '同じ数字のカードを何枚かまとめて出せる（効果は枚数ぶん）' },
-  { k: 'kaeshi', name: 'ドボン返し・引きドボン', desc: 'ドボンされた人が逆転を狙える' },
+  { k: 'kaeshi', name: 'ドボン返し・引きドボン返し', desc: 'ドボンされた人が逆転を狙える' },
+  { k: 'hikiDobon', name: '引きドボン', desc: '山札から引いてからドボンすると×2（誰でも）' },
   { k: 'bakiri', name: '場切れ', desc: '自分の出したカードが一周して戻ってきたら、好きなカードを出せる' },
   { k: 'otetsuki', name: 'お手つき', desc: '合計が違うのにドボンを押すと1枚引く' },
   { k: 'handLimit', name: `手札${HAND_LIMIT}枚で負け`, desc: `手札が${HAND_LIMIT}枚になったら負け。ほかの全員に${OVER_POINTS}点ずつ払う` },
@@ -1240,10 +1261,11 @@ function renderRulesDoc() {
   ]));
 
   if (rules.kaeshi) {
-    sec('ドボン返し・引きドボン').append(ul([
+    sec('ドボン返し・引きドボン返し').append(ul([
       'ドボンされた人の手札合計が、その数字と「同じ」→ ドボン返し！逆転勝ち。',
       '「大きい」→ そのまま負け。',
-      '「小さい」→ 引きドボンに挑戦できる。山札から1枚ずつ引き、合計がちょうどその数字になれば逆転勝ち。超えたら失敗（負けが重くなる）。途中であきらめることもできる。',
+      '「小さい」→ 引きドボン返しに挑戦できる。山札から1枚ずつ引き、合計がちょうどその数字になれば逆転勝ち。超えたら失敗（負けが重くなる）。途中であきらめることもできる。',
+      '引きドボンに対しても、ドボン返し・引きドボン返しができる（引きドボンの×2も重なる）。',
       '複数ドボンのときは、ドボンした全員を相手に判定する。',
     ]));
   }
@@ -1257,7 +1279,7 @@ function renderRulesDoc() {
       .map(([, m]) => `${m.label}：×${m.x}`),
     ...(rules.joker ? [`ラウンドで最初に出たカード（または最初の場札）がジョーカー：そのラウンドの得点すべて×${JOKER_FIRST_X}`, 'ジョーカーでのドボン（手札合計0）は15点として計算する。'] : []),
     ...(rules.cycleBonus ? ['山札を切り直すたびに、そのラウンドの得点の倍率が +1（1周で×2、2周で×3…）。手札オーバーの支払いにも掛かる。'] : []),
-    '倍率は重なると掛け算。例：K(13)で単騎ドボン返し → 13×2×2＝52点、ジョーカー2枚を持ったまま9でドボン → 9×2×2＝36点',
+    '倍率は重なると掛け算。例：K(13)で単騎ドボン返し → 13×2×2＝52点、9の引きドボンを引きドボン返し → 9×2×2＝36点、それに失敗 → 9×2×2×2＝72点',
     '次のラウンドは負けた人から始まる。',
   ]));
 }
@@ -1407,8 +1429,9 @@ function renderGame() {
   // 複数ドボン受付中の表示（ボタンは押せるように画面をふさがない）
   const db = $('dobon-banner');
   db.hidden = g.phase !== 'dobon';
+  $('banner-stamp').textContent = g.hikiDecl && g.hikiDecl.includes(g.dobons[0]) ? '引きドボン！' : 'ドボン！';
   if (g.phase === 'dobon') {
-    $('dobon-names').textContent = `${names(g.dobons)} → ${nameOf(lp.by)}（${cardText(lp.cards[lp.cards.length - 1])}）`;
+    $('dobon-names').textContent = `${dobonNames(g.dobons, g.hikiDecl)} → ${nameOf(lp.by)}（${cardText(lp.cards[lp.cards.length - 1])}）`;
     dobonEnd = now + g.dobonMs;
   }
 
@@ -1422,14 +1445,17 @@ function renderCounter(g) {
   const box = $('counter');
   if (g.phase !== 'counter' || !g.counter) { box.hidden = true; return; }
   const c = g.counter; const mine = c.victim === state.you;
-  $('counter-text').textContent = `${names(c.by)} が ${nameOf(c.victim)} の ${cardText(c.card)} にドボン！`;
+  const anyHiki = c.by.some((i) => (g.hikiDecl || []).includes(i));
+  $('counter-stamp').textContent = anyHiki ? '引きドボン！' : 'ドボン！';
+  $('counter-stamp').classList.toggle('long', anyHiki);
+  $('counter-text').textContent = `${dobonNames(c.by, g.hikiDecl)} が ${nameOf(c.victim)} の ${cardText(c.card)} にドボン！`;
   $('counter-info').textContent = `${nameOf(c.victim)} の手札合計 ${c.sum} ／ 目標 ${c.target}（あと ${c.target - c.sum}）`;
   const dr = $('counter-drawn'); dr.replaceChildren();
   c.drawn.forEach((id) => dr.append(cardEl(id)));
   $('counter-actions').hidden = !mine;
   $('counter-wait').textContent = mine
-    ? `山札から1枚ずつ引いて、合計がちょうど ${c.target} なら逆転（×${MULTIPLIERS.hiki.x}）。超えると失敗（×${MULTIPLIERS.burst.x}）。`
-    : `${nameOf(c.victim)} が引きドボンに挑戦するか考えています…`;
+    ? `山札から1枚ずつ引いて、合計がちょうど ${c.target} なら逆転（×${MULTIPLIERS.hiki.x}）。超えると失敗（×${MULTIPLIERS.hiki.x}×${MULTIPLIERS.burst.x}＝×${MULTIPLIERS.hiki.x * MULTIPLIERS.burst.x}）。${anyHiki ? '引きドボンへの返しなので、どちらもさらに×2。' : ''}`
+    : `${nameOf(c.victim)} が引きドボン返しに挑戦するか考えています…`;
   box.hidden = false;
 }
 
@@ -1457,11 +1483,11 @@ function renderLog(log) {
       case 'timeout': li.textContent = `${who}：時間切れ`; break;
       case 'reshuffle': li.className = e.x ? 'warn' : ''; li.textContent = e.x ? `山札を切り直し（${e.n}周目 → ラウンド倍率×${e.x}）` : '山札を切り直し'; break;
       case 'jokerFirst': li.className = 'warn'; li.textContent = `${who}：最初のカードがジョーカー！ このラウンドは×${JOKER_FIRST_X}`; break;
-      case 'dobon': li.className = 'hot'; li.textContent = `${who}：ドボン！ → ${nameOf(e.target)}`; break;
+      case 'dobon': li.className = 'hot'; li.textContent = `${who}：${e.hiki ? '引きドボン' : 'ドボン'}！ → ${nameOf(e.target)}`; break;
       case 'kaeshi': li.className = 'hot'; li.textContent = `${who}：ドボン返し！`; break;
-      case 'hikidraw': li.append(`${who}：引きドボン `, cardText(e.card)); break;
-      case 'hiki': li.className = 'hot'; li.textContent = `${who}：引きドボン成功！`; break;
-      case 'burst': li.className = 'hot'; li.textContent = `${who}：引きドボン失敗`; break;
+      case 'hikidraw': li.append(`${who}：引きドボン返しで `, cardText(e.card)); break;
+      case 'hiki': li.className = 'hot'; li.textContent = `${who}：引きドボン返し成功！`; break;
+      case 'burst': li.className = 'hot'; li.textContent = `${who}：引きドボン返し失敗`; break;
       case 'giveup': li.textContent = `${who}：あきらめた`; break;
       default: break;
     }
@@ -1469,7 +1495,8 @@ function renderLog(log) {
   }
 }
 
-const RESULT_TITLE = { dobon: 'ドボン！', kaeshi: 'ドボン返し！', hiki: '引きドボン成功！', burst: '引きドボン失敗…', over: '手札オーバー！' };
+const RESULT_TITLE = { dobon: 'ドボン！', kaeshi: 'ドボン返し！', hiki: '引きドボン返し成功！', burst: '引きドボン返し失敗…', over: '手札オーバー！' };
+const dobonNames = (decl, hikiDecl = []) => decl.map((i) => `${nameOf(i)}${hikiDecl.includes(i) ? '（引きドボン）' : ''}`).join('・');
 let shownResultRound = -1;
 function renderResult(g) {
   const box = $('result');
@@ -1480,13 +1507,15 @@ function renderResult(g) {
     const st = $('result-stamp');
     st.style.animation = 'none'; void st.offsetWidth; st.style.animation = '';
   }
-  $('result-stamp').textContent = RESULT_TITLE[r.type] || 'ドボン！';
-  const V = nameOf(r.victim); const D = names(r.declarers);
+  const allHiki = r.hikiDecl && r.hikiDecl.length && r.hikiDecl.length === r.declarers.length;
+  $('result-stamp').textContent = r.type === 'dobon' && allHiki ? '引きドボン！' : RESULT_TITLE[r.type] || 'ドボン！';
+  $('result-stamp').classList.toggle('long', $('result-stamp').textContent.length > 7);
+  const V = nameOf(r.victim); const D = dobonNames(r.declarers, r.hikiDecl || []);
   $('result-text').textContent = {
     dobon: `${D} が ${V} の ${cardText(r.card)} にドボン！`,
     kaeshi: `${D} のドボンを ${V} が返した！（${cardText(r.card)}）`,
-    hiki: `${V} が引きドボンで ${r.target} ちょうど！ 逆転勝ち`,
-    burst: `${V} の引きドボンは ${r.target} を超えてしまった…`,
+    hiki: `${V} が引きドボン返しで ${r.target} ちょうど！ 逆転勝ち`,
+    burst: `${V} の引きドボン返しは ${r.target} を超えてしまった…`,
     over: `${V} の手札が${HAND_LIMIT}枚になってしまった！ 全員に${OVER_POINTS}点ずつ`,
   }[r.type] || '';
 
@@ -2144,7 +2173,7 @@ $('btn-copy').addEventListener('click', async () => {
           <p id="turn-announce-sub" class="ta-sub"></p>
         </div>
         <div id="dobon-banner" class="dobon-banner" hidden>
-          <p class="banner-stamp">ドボン！</p>
+          <p id="banner-stamp" class="banner-stamp">ドボン！</p>
           <p id="dobon-names" class="banner-names"></p>
           <p class="banner-note">1秒以内ならほかの人も重ねてドボンできる</p>
           <div class="timer wide"><div id="dobon-bar"></div></div>
@@ -2217,12 +2246,12 @@ $('btn-copy').addEventListener('click', async () => {
   <!-- ドボン返し（引きドボン）の判断 -->
   <div id="counter" class="result" hidden>
     <div class="result-box">
-      <p class="stamp">ドボン！</p>
+      <p id="counter-stamp" class="stamp">ドボン！</p>
       <p id="counter-text" class="result-text"></p>
       <p id="counter-info" class="counter-info"></p>
       <div id="counter-drawn" class="counter-drawn"></div>
       <div id="counter-actions" class="row center-row" hidden>
-        <button id="btn-challenge" class="btn primary" type="button">引きドボンに挑戦（1枚引く）</button>
+        <button id="btn-challenge" class="btn primary" type="button">引きドボン返しに挑戦（1枚引く）</button>
         <button id="btn-giveup" class="btn" type="button">あきらめる</button>
       </div>
       <p id="counter-wait" class="muted center"></p>
@@ -2255,7 +2284,7 @@ $('btn-copy').addEventListener('click', async () => {
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <footer class="footer-status">
-    <span id="version">v2.8.0 ・ build 2026-11-15 02:20</span>
+    <span id="version">v3.0.0 ・ build 2026-11-15 03:00</span>
     <span id="netstat"></span>
     <button id="neterr" class="neterr" type="button" hidden>⚠ 接続エラーあり（クリックで詳細）</button>
   </footer>
