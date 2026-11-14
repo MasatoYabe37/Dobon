@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ドボン — オンライン対戦</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-g6alS2Tl6Q63XDdzygOi7GesrrfOVUe6pVaZiW7AOVo=' https://cdn.jsdelivr.net; style-src 'sha256-d2hSDLn3LvLPg4NG8MMnoF1HVZbIGasvS/23ESHHTgc='; img-src data:; connect-src wss: https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-fi+oujrR935k9P60KSYheDmf/P59I2LSTaQjeR3uaGo=' https://cdn.jsdelivr.net; style-src 'sha256-d2hSDLn3LvLPg4NG8MMnoF1HVZbIGasvS/23ESHHTgc='; img-src data:; connect-src wss: https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3QgeD0iMTAiIHk9IjQiIHdpZHRoPSI0NCIgaGVpZ2h0PSI1NiIgcng9IjYiIGZpbGw9IiNmYmY3ZWMiIHN0cm9rZT0iIzEzNTczYSIgc3Ryb2tlLXdpZHRoPSIzIi8+PHRleHQgeD0iMzIiIHk9IjQ0IiBmb250LXNpemU9IjMyIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjYzQyNTJmIj7imaU8L3RleHQ+PC9zdmc+Cg==" type="image/svg+xml">
   <style>:root {
@@ -448,10 +448,9 @@ function shuffle(a) {
 const MULTIPLIERS = {
   tanki: { x: 2, label: '単騎ドボン（手札1枚）' },
   kaeshi: { x: 2, label: 'ドボン返し' },
-  hiki: { x: 3, label: '引きドボン成功' },
-  hikiBonus: { x: 2, label: '引きドボンボーナス' },
+  hiki: { x: 2, label: '引きドボン成功' },
   burst: { x: 2, label: '引きドボン失敗' },
-  jokerHand: { x: 2, label: 'ジョーカー入りドボン' },
+  jokerHand: { x: 2, label: 'ジョーカー入りドボン（1枚につき）' },
 };
 
 class DobonGame {
@@ -737,11 +736,14 @@ class DobonGame {
       const keys = [];
       let from = victim; let to = d;
       if (type === 'kaeshi') { keys.push('kaeshi'); from = d; to = victim; }
-      if (type === 'hiki') { keys.push('hiki', 'hikiBonus'); from = d; to = victim; }
+      if (type === 'hiki') { keys.push('hiki'); from = d; to = victim; }
       if (type === 'burst') keys.push('burst');
       if (this.hands[to].length === 1) keys.push('tanki');
-      if (this.hands[to].some(isJoker)) keys.push('jokerHand');
-      const mults = [...keys.map((k) => ({ k, ...MULTIPLIERS[k] })), ...this.roundMults()];
+      const mults = keys.map((k) => ({ k, ...MULTIPLIERS[k] }));
+      // ジョーカーは持っている枚数だけ ×2
+      const jk = this.hands[to].filter(isJoker).length;
+      if (jk > 0) mults.push({ k: 'jokerHand', x: 2 ** jk, label: `ジョーカー${jk}枚入り` });
+      mults.push(...this.roundMults());
       const base = basePoints(target);
       return { from, to, mults, base, points: base * mults.reduce((m, x) => m * x.x, 1) };
     });
@@ -1131,7 +1133,7 @@ const RULE_DEFS = [
   { k: 'otetsuki', name: 'お手つき', desc: '合計が違うのにドボンを押すと1枚引く' },
   { k: 'handLimit', name: `手札${HAND_LIMIT}枚で負け`, desc: `手札が${HAND_LIMIT}枚になったら負け。ほかの全員に${OVER_POINTS}点ずつ払う` },
   { k: 'passLock', name: 'パス制限', desc: '出せるカードがあるのにパスすると、次の番はパスできない' },
-  { k: 'joker', name: 'ジョーカー', desc: `2枚入れる。値は0で何の上にも出せる。最初のカードなら×${JOKER_FIRST_X}、手札にあるままドボンで×2` },
+  { k: 'joker', name: 'ジョーカー', desc: `2枚入れる。値は0で何の上にも出せる。最初のカードなら×${JOKER_FIRST_X}、手札にあるままドボンすると1枚につき×2` },
   { k: 'cycleBonus', name: '山札周回ボーナス', desc: '山札を切り直すたびに、そのラウンドの倍率が +1（×2、×3…）' },
   { k: 'hint', name: 'ドボンのヒント', desc: 'ドボンできるときにボタンを光らせる（初心者向け）' },
 ];
@@ -1255,7 +1257,7 @@ function renderRulesDoc() {
       .map(([, m]) => `${m.label}：×${m.x}`),
     ...(rules.joker ? [`ラウンドで最初に出たカード（または最初の場札）がジョーカー：そのラウンドの得点すべて×${JOKER_FIRST_X}`, 'ジョーカーでのドボン（手札合計0）は15点として計算する。'] : []),
     ...(rules.cycleBonus ? ['山札を切り直すたびに、そのラウンドの得点の倍率が +1（1周で×2、2周で×3…）。手札オーバーの支払いにも掛かる。'] : []),
-    '倍率は重なると掛け算。例：K(13)で単騎ドボン返し → 13×2×2＝52点、9で引きドボン成功 → 9×3×2＝54点',
+    '倍率は重なると掛け算。例：K(13)で単騎ドボン返し → 13×2×2＝52点、ジョーカー2枚を持ったまま9でドボン → 9×2×2＝36点',
     '次のラウンドは負けた人から始まる。',
   ]));
 }
@@ -1426,7 +1428,7 @@ function renderCounter(g) {
   c.drawn.forEach((id) => dr.append(cardEl(id)));
   $('counter-actions').hidden = !mine;
   $('counter-wait').textContent = mine
-    ? `山札から1枚ずつ引いて、合計がちょうど ${c.target} なら逆転（×${MULTIPLIERS.hiki.x * MULTIPLIERS.hikiBonus.x}）。超えると失敗（×${MULTIPLIERS.burst.x}）。`
+    ? `山札から1枚ずつ引いて、合計がちょうど ${c.target} なら逆転（×${MULTIPLIERS.hiki.x}）。超えると失敗（×${MULTIPLIERS.burst.x}）。`
     : `${nameOf(c.victim)} が引きドボンに挑戦するか考えています…`;
   box.hidden = false;
 }
@@ -2253,7 +2255,7 @@ $('btn-copy').addEventListener('click', async () => {
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <footer class="footer-status">
-    <span id="version">v2.7.0 ・ build 2026-11-15 02:06</span>
+    <span id="version">v2.8.0 ・ build 2026-11-15 02:20</span>
     <span id="netstat"></span>
     <button id="neterr" class="neterr" type="button" hidden>⚠ 接続エラーあり（クリックで詳細）</button>
   </footer>
