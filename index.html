@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ドボン — オンライン対戦</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-fD7r9vcWfQ/L2BmoTjLlQJrQlXZbFPVlS7PKZY4ZS74=' https://cdn.jsdelivr.net; style-src 'sha256-X9MTAToRhr/9DOneqm4Q2LR0kyw5uPzAy2wkiwfSvDk='; img-src data:; connect-src wss: https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-BIULM9zgf8yIrfe6CDX/AYMEo3m960mqRfxIKrlllZs=' https://cdn.jsdelivr.net; style-src 'sha256-ZLUo0tw5UkrN6PivL86LK1BQbyHnUc2zwxkzXIqKiEo='; img-src data:; connect-src wss: https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3QgeD0iMTAiIHk9IjQiIHdpZHRoPSI0NCIgaGVpZ2h0PSI1NiIgcng9IjYiIGZpbGw9IiNmYmY3ZWMiIHN0cm9rZT0iIzEzNTczYSIgc3Ryb2tlLXdpZHRoPSIzIi8+PHRleHQgeD0iMzIiIHk9IjQ0IiBmb250LXNpemU9IjMyIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjYzQyNTJmIj7imaU8L3RleHQ+PC9zdmc+Cg==" type="image/svg+xml">
   <style>:root {
@@ -283,6 +283,29 @@ select { font: inherit; font-size: 13px; padding: 4px 6px; border-radius: 6px; }
 
 .stamp { line-height: 1.15; margin-bottom: 4px !important; }
 .rules-dialog h2:focus { outline: none; }
+
+/* 複数ドボン受付中 */
+.table { position: relative; }
+.dobon-banner {
+  position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); z-index: 5; pointer-events: none;
+  background: rgba(15, 63, 42, .92); border: 2px solid var(--danger); border-radius: 16px; padding: 14px 28px; text-align: center;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .5); min-width: 340px;
+}
+.banner-stamp { margin: 0; font-family: var(--serif); font-size: 52px; font-weight: 900; color: var(--danger); letter-spacing: .1em; animation: stamp .45s cubic-bezier(.2, 1.6, .4, 1); line-height: 1.15; }
+.banner-names { margin: 4px 0; font-size: 16px; font-weight: 700; }
+.banner-note { margin: 0 0 8px; font-size: 12px; color: var(--muted); }
+#dobon-bar { height: 100%; width: 0; background: var(--danger); }
+
+/* 8の指定 */
+.suit-label { margin: 6px 0 6px !important; font-size: 12px; color: var(--muted); }
+.suit-label b { color: var(--gold); }
+.suit-btn.not { background: #2c4a3c; color: var(--cream); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }
+.suit-btn.not.red { color: #ff8f96; }
+.suit-btn.not small { font-size: 11px; margin-top: 3px; color: var(--cream); }
+
+.log li.warn { background: rgba(217, 180, 90, .25); }
+.transfer-line { font-size: 14px; }
+.next-countdown { margin: 0; text-align: center; color: var(--gold); font-size: 13px; min-height: 1.2em; }
 </style>
   <script type="module">// ---- game.js
 /**
@@ -290,21 +313,31 @@ select { font: inherit; font-size: 13px; padding: 4px 6px; border-radius: 6px; }
  * 参加者は「意図」だけを送り、すべての判定はホストのブラウザでここを通して行う。
  *
  * カードID: 0..51  suit = floor(id/13) → S,H,D,C / rank = id%13 + 1 (A=1 … K=13)
+ *
+ * phase:
+ *   playing … 通常の手番
+ *   dobon   … 最初のドボン宣言から DOBON_MULTI_MS の間。他の人も重ねてドボンできる
+ *   counter … ドボンされた人が引きドボンに挑戦するか判断中
+ *   ended   … ラウンド終了
  */
 
 const SUITS = ['S', 'H', 'D', 'C'];
 const HAND_SIZE = 5;
-const DOBON_WINDOW_MS = 1500; // カードが出た直後、次の手番を待たせる時間（ドボン宣言の猶予）
-const LOG_MAX = 14;
+const DOBON_WINDOW_MS = 1500; // カードが出た直後、次の手番を待たせる時間
+const DOBON_MULTI_MS = 1000; // 最初のドボンの後、他の人が重ねてドボンできる時間
+const LOG_MAX = 16;
 
 /** ホストが待合室で ON/OFF できるルール */
 const DEFAULT_RULES = Object.freeze({
   skipA: true, // A：次の人をスキップ
   draw2: true, // 2：次の人は2枚引く（2を重ねて回避・累積）
-  wild8: true, // 8：いつでも出せてマーク指定
+  wild8: true, // 8：いつでも出せてマーク（またはマーク以外）を指定
   reverseJ: true, // J：順番を逆回り
   stack: true, // 同じ数字の重ね出し
   kaeshi: true, // ドボン返し・引きドボン
+  bakiri: true, // 自分の出したカードが一周したら場が切れて何でも出せる
+  otetsuki: true, // 間違ったドボンは1枚ドロー
+  hint: false, // ドボンできるときにボタンを光らせる（初心者向け）
   turnSec: 30, // 持ち時間（秒）
 });
 const TURN_SEC_CHOICES = [15, 30, 60];
@@ -370,13 +403,17 @@ class DobonGame {
     }
     this.discard = [start];
     this.declaredSuit = null; // 8で指定されたスート
+    this.declaredNot = false; // true なら「指定スート以外」
     this.turn = firstPlayer % numPlayers;
     this.dir = 1;
     this.pendingDraw = 0; // 2の累積ドロー枚数
     this.hasDrawn = false;
     this.lastPlay = null; // {by, cards}
+    this.sinceTurns = 0; // 最後にカードが出てから、出さずに終わった手番の数（場切れ判定）
     this.lockUntil = 0;
-    this.phase = 'playing'; // playing | counter（ドボン返しの判断中） | ended
+    this.phase = 'playing';
+    this.dobons = []; // ドボン宣言者（宣言順）
+    this.dobonUntil = 0;
     this.counter = null;
     this.result = null;
     this.log = [{ k: 'start', card: start }];
@@ -388,8 +425,14 @@ class DobonGame {
   }
 
   top() { return this.discard[this.discard.length - 1]; }
-  activeSuit() { return this.declaredSuit ?? suitOf(this.top()); }
   isLocked(now) { return now < this.lockUntil; }
+  target() { return this.lastPlay ? rankOf(this.lastPlay.cards[this.lastPlay.cards.length - 1]) : null; }
+
+  /** 場切れ：自分が最後に出したカードが一周して戻ってきた */
+  isFree(p) {
+    return this.rules.bakiri && this.phase === 'playing' && this.turn === p && this.pendingDraw === 0
+      && Boolean(this.lastPlay) && this.lastPlay.by === p && this.sinceTurns >= 1;
+  }
 
   /** 1枚目として出せるか */
   canPlayCard(p, id) {
@@ -398,8 +441,11 @@ class DobonGame {
     if (hand.length < 2) return false; // 最後の1枚は出せない（ドボンでしか勝てない）
     const r = rankOf(id);
     if (this.pendingDraw > 0) return r === 2; // ドロー2は2で返すしかない
+    if (this.isFree(p)) return true; // 場切れ
     if (r === 8 && this.rules.wild8) return true; // 8はワイルド
-    return suitOf(id) === this.activeSuit() || r === rankOf(this.top());
+    if (r === rankOf(this.top())) return true;
+    if (this.declaredSuit) return this.declaredNot ? suitOf(id) !== this.declaredSuit : suitOf(id) === this.declaredSuit;
+    return suitOf(id) === suitOf(this.top());
   }
 
   /** 複数枚（同じ数字の重ね出し）を含めて出せるか。エラーメッセージ or null */
@@ -428,6 +474,16 @@ class DobonGame {
     this.hasDrawn = false;
   }
 
+  /** カードを出さずに手番を終える */
+  _endTurnWithoutPlay() {
+    this.sinceTurns += 1;
+    this._advance(1);
+    if (this.isFree(this.turn)) {
+      this.declaredSuit = null; this.declaredNot = false;
+      this._pushLog({ k: 'bakiri', p: this.turn });
+    }
+  }
+
   _drawOne() {
     if (this.deck.length === 0) {
       const top = this.discard.pop();
@@ -451,15 +507,18 @@ class DobonGame {
   }
 
   _checkTurn(p, now) {
-    if (this.phase === 'counter') return 'ドボン返しの判断中です';
+    if (this.phase === 'dobon' || this.phase === 'counter') return 'ドボンの処理中です';
     if (this.phase !== 'playing') return 'ゲームは終了しています';
     if (p !== this.turn) return 'あなたの手番ではありません';
     if (this.isLocked(now)) return 'ドボン受付中です。少し待ってください';
     return null;
   }
 
-  /** cards: カードID または ID配列（同じ数字の重ね出し。最後のカードが場の一番上になる） */
-  play(p, cards, suit, now = Date.now()) {
+  /**
+   * cards: カードID または ID配列（同じ数字の重ね出し。最後のカードが場の一番上になる）
+   * suit/not: 8を出すときの指定（not=true なら「suit 以外」）
+   */
+  play(p, cards, suit, now = Date.now(), not = false) {
     const err = this._checkTurn(p, now);
     if (err) return { ok: false, err };
     const ids = Array.isArray(cards) ? cards : [cards];
@@ -469,6 +528,7 @@ class DobonGame {
     const wild = r === 8 && this.rules.wild8;
     if (wild && !SUITS.includes(suit)) return { ok: false, err: 'マークを指定してください' };
 
+    const free = this.isFree(p);
     let skips = 0;
     for (const id of ids) {
       this.hands[p].splice(this.hands[p].indexOf(id), 1);
@@ -478,13 +538,16 @@ class DobonGame {
       if (r === 1 && this.rules.skipA) skips += 1;
     }
     this.declaredSuit = wild ? suit : null;
+    this.declaredNot = wild ? not === true : false;
     this.lastPlay = { by: p, cards: ids };
+    this.sinceTurns = 0;
     this.lockUntil = now + DOBON_WINDOW_MS;
-    this._pushLog({ k: 'play', p, cards: ids, suit: wild ? suit : undefined });
+    this._pushLog({ k: 'play', p, cards: ids, suit: wild ? suit : undefined, not: wild && not === true ? true : undefined, free: free || undefined });
     this._advance(1 + Math.min(skips, this.n - 1));
     return { ok: true };
   }
 
+  /** ドロー：何枚でも引ける（2のペナルティ中はまとめて引いて手番終了） */
   draw(p, now = Date.now()) {
     const err = this._checkTurn(p, now);
     if (err) return { ok: false, err };
@@ -492,14 +555,14 @@ class DobonGame {
       const got = this._drawN(p, this.pendingDraw);
       this._pushLog({ k: 'penalty', p, n: got });
       this.pendingDraw = 0;
-      this._advance(1);
+      this._endTurnWithoutPlay();
       return { ok: true };
     }
-    if (this.hasDrawn) return { ok: false, err: 'すでに1枚引いています' };
-    const got = this._drawN(p, 1);
-    this._pushLog({ k: 'draw', p });
     this.hasDrawn = true;
-    if (got === 0) this._advance(1); // 引けるカードがなければ自動パス
+    if (this._drawN(p, 1) === 0) return { ok: false, err: '山札がありません。パスしてください' };
+    const last = this.log[this.log.length - 1];
+    if (last && last.k === 'draw' && last.p === p) last.n += 1; // 連続ドローはログをまとめる
+    else this._pushLog({ k: 'draw', p, n: 1 });
     return { ok: true };
   }
 
@@ -508,37 +571,50 @@ class DobonGame {
     if (err) return { ok: false, err };
     if (!this.hasDrawn) return { ok: false, err: 'パスの前に1枚引いてください' };
     this._pushLog({ k: 'pass', p });
-    this._advance(1);
+    this._endTurnWithoutPlay();
     return { ok: true };
   }
 
-  dobon(p) {
-    if (this.phase === 'counter') return { ok: false, err: 'すでにドボンが宣言されています' };
-    if (this.phase !== 'playing') return { ok: false, err: 'ゲームは終了しています' };
+  /**
+   * ドボン宣言。最初の宣言から DOBON_MULTI_MS の間は他の人も重ねて宣言できる。
+   * 合計が違う場合（お手つき）は1枚引く。
+   */
+  dobon(p, now = Date.now()) {
+    if (this.phase === 'counter' || this.phase === 'ended') return { ok: false, err: 'ドボンの受付は終わりました' };
     const lp = this.lastPlay;
     if (!lp) return { ok: false, err: 'まだ誰もカードを出していません' };
     if (lp.by === p) return { ok: false, err: '自分の出したカードではドボンできません' };
-    const card = lp.cards[lp.cards.length - 1];
-    const target = rankOf(card);
-    if (handSum(this.hands[p]) !== target) return { ok: false, err: `手札の合計が ${target} ではありません` };
-
-    const victim = lp.by;
-    this._pushLog({ k: 'dobon', p, target: victim });
-    if (!this.rules.kaeshi) { this._finish('dobon', p, victim, p, card); return { ok: true }; }
-
-    const vs = handSum(this.hands[victim]);
-    if (vs === target) {
-      // ドボン返し：ドボンされた人の手札合計も同じ数 → 逆転
-      this._pushLog({ k: 'kaeshi', p: victim });
-      this._finish('kaeshi', victim, p, p, card);
-    } else if (vs > target) {
-      this._finish('dobon', p, victim, p, card); // 大きい → そのまま負け
-    } else {
-      // 小さい → 引きドボンに挑戦できる
-      this.phase = 'counter';
-      this.counter = { by: p, victim, target, card, drawn: [] };
+    if (this.dobons.includes(p)) return { ok: false, err: 'すでにドボンしています' };
+    if (this.phase === 'dobon' && now > this.dobonUntil) return { ok: false, err: 'ドボンの受付は終わりました' };
+    const target = this.target();
+    if (handSum(this.hands[p]) !== target) {
+      if (!this.rules.otetsuki) return { ok: false, err: `手札の合計が ${target} ではありません` };
+      const got = this._drawN(p, 1);
+      this._pushLog({ k: 'otetsuki', p });
+      return { ok: true, notice: got ? `お手つき！ 合計が ${target} ではないので1枚引きました` : 'お手つき！（山札がないので引けませんでした）' };
+    }
+    this.dobons.push(p);
+    this._pushLog({ k: 'dobon', p, target: lp.by });
+    if (this.phase === 'playing') {
+      this.phase = 'dobon';
+      this.dobonUntil = now + DOBON_MULTI_MS;
     }
     return { ok: true };
+  }
+
+  /** 重ねドボンの受付終了 → ドボン返しの判定 */
+  resolveDobon() {
+    if (this.phase !== 'dobon') return;
+    const victim = this.lastPlay.by;
+    const target = this.target();
+    const card = this.lastPlay.cards[this.lastPlay.cards.length - 1];
+    if (!this.rules.kaeshi) { this._finish('dobon'); return; }
+    const vs = handSum(this.hands[victim]);
+    if (vs === target) { this._pushLog({ k: 'kaeshi', p: victim }); this._finish('kaeshi'); } else if (vs > target) this._finish('dobon');
+    else {
+      this.phase = 'counter';
+      this.counter = { by: [...this.dobons], victim, target, card, drawn: [] };
+    }
   }
 
   /** 引きドボン：1枚引いて合計がちょうどなら逆転、超えたら失敗 */
@@ -551,49 +627,59 @@ class DobonGame {
     c.drawn.push(card);
     this._pushLog({ k: 'hikidraw', p, card });
     const s = handSum(this.hands[p]);
-    if (s === c.target) { this._pushLog({ k: 'hiki', p }); this._finish('hiki', p, c.by, c.by, c.card); } else if (s > c.target) { this._pushLog({ k: 'burst', p }); this._finish('burst', c.by, p, c.by, c.card); }
+    if (s === c.target) { this._pushLog({ k: 'hiki', p }); this._finish('hiki'); } else if (s > c.target) { this._pushLog({ k: 'burst', p }); this._finish('burst'); }
     return { ok: true };
   }
 
   giveup(p) {
     if (this.phase !== 'counter' || p !== this.counter.victim) return { ok: false, err: '今はできません' };
     this._pushLog({ k: 'giveup', p });
-    this._finish('dobon', this.counter.by, p, this.counter.by, this.counter.card);
+    this._finish('dobon');
     return { ok: true };
   }
 
-  _finish(type, winner, loser, declarer, card) {
+  /** ラウンド終了。宣言者ごとに得点のやり取り（transfers）を作る */
+  _finish(type) {
+    const victim = this.lastPlay.by;
+    const card = this.lastPlay.cards[this.lastPlay.cards.length - 1];
     const target = rankOf(card);
-    const mults = [];
-    if (type === 'kaeshi') mults.push('kaeshi');
-    if (type === 'hiki') mults.push('hiki');
-    if (type === 'burst') mults.push('burst');
-    if ((type === 'dobon' || type === 'kaeshi') && this.hands[winner].length === 1) mults.push('tanki');
-    const x = mults.reduce((m, k) => m * MULTIPLIERS[k].x, 1);
+    const transfers = this.dobons.map((d) => {
+      const mults = [];
+      let from = victim; let to = d;
+      if (type === 'kaeshi') { mults.push('kaeshi'); from = d; to = victim; }
+      if (type === 'hiki') { mults.push('hiki'); from = d; to = victim; }
+      if (type === 'burst') mults.push('burst');
+      if (this.hands[to].length === 1) mults.push('tanki');
+      const x = mults.reduce((m, k) => m * MULTIPLIERS[k].x, 1);
+      return { from, to, mults, points: target * x };
+    });
+    const victimLost = type === 'dobon' || type === 'burst';
     this.phase = 'ended';
     this.result = {
-      type, winner, loser, declarer, card, target,
+      type, victim, declarers: [...this.dobons], card, target,
       drawn: this.counter ? this.counter.drawn : [],
-      mults, points: target * x,
+      transfers,
+      loser: victimLost ? victim : this.dobons[0], // 次ラウンドの親
       hands: this.hands.map(sortHand),
     };
   }
 
-  /** 手番（または引きドボン判断）タイムアウト時の自動行動 */
+  /** タイムアウト時の自動行動 */
   autoAct(now = Date.now()) {
+    if (this.phase === 'dobon') { this.resolveDobon(); return; }
     if (this.phase === 'counter') { this.giveup(this.counter.victim); return; }
     if (this.phase !== 'playing') return;
     const p = this.turn;
     this.lockUntil = 0;
     if (this.pendingDraw > 0) { this.draw(p, now); return; }
     if (!this.hasDrawn) this.draw(p, now);
-    if (this.phase === 'playing' && this.turn === p && this.hasDrawn) {
+    if (this.phase === 'playing' && this.turn === p) {
       this._pushLog({ k: 'timeout', p });
-      this._advance(1);
+      this._endTurnWithoutPlay();
     }
   }
 
-  /** いま誰の操作待ちか（タイマー用） */
+  /** いま誰の操作待ちか（タイマー用。dobon 中は -1） */
   actor() {
     if (this.phase === 'counter') return this.counter.victim;
     if (this.phase === 'playing') return this.turn;
@@ -612,14 +698,18 @@ class DobonGame {
       counts: this.hands.map((h) => h.length),
       top: this.top(),
       declaredSuit: this.declaredSuit,
-      activeSuit: this.activeSuit(),
+      declaredNot: this.declaredNot,
       turn: this.turn,
       dir: this.dir,
       pendingDraw: this.pendingDraw,
       hasDrawn: myTurn ? this.hasDrawn : false,
+      free: this.isFree(this.turn),
       deckCount: this.deck.length,
       lockMs: Math.max(0, this.lockUntil - now),
       lastPlay: this.lastPlay,
+      target: this.target(),
+      dobons: this.dobons,
+      dobonMs: this.phase === 'dobon' ? Math.max(0, this.dobonUntil - now) : 0,
       playable: myTurn ? this.hands[p].filter((id) => this.canPlayCard(p, id)) : [],
       counter: this.phase === 'counter'
         ? { by: c.by, victim: c.victim, target: c.target, card: c.card, drawn: c.drawn, sum: handSum(this.hands[c.victim]) }
@@ -635,6 +725,9 @@ class DobonGame {
   static fromJSON(o) {
     const g = Object.assign(Object.create(DobonGame.prototype), o);
     g.rules = sanitizeRules(o.rules);
+    g.dobons = Array.isArray(o.dobons) ? o.dobons : [];
+    g.sinceTurns = o.sinceTurns || 0;
+    g.declaredNot = Boolean(o.declaredNot);
     return g;
   }
 }
@@ -761,6 +854,7 @@ const isRed = (s) => s === 'H' || s === 'D';
 
 const MAX_PLAYERS = 4;
 const COUNTER_MS = 20_000; // 引きドボンの判断時間
+const AUTO_NEXT_MS = 10_000; // ラウンド終了から次のラウンドが自動で始まるまで
 const OFFLINE_TURN_MS = 4_000;
 const MAX_MSG_BYTES = 4096;
 const CODE_LEN = 12;
@@ -888,7 +982,11 @@ const RULE_DEFS = [
   { k: 'reverseJ', name: 'J：リバース', desc: '順番が逆回りになる' },
   { k: 'stack', name: '同じ数字の重ね出し', desc: '同じ数字のカードを何枚かまとめて出せる（効果は枚数ぶん）' },
   { k: 'kaeshi', name: 'ドボン返し・引きドボン', desc: 'ドボンされた人が逆転を狙える' },
+  { k: 'bakiri', name: '場切れ', desc: '自分の出したカードが一周して戻ってきたら、好きなカードを出せる' },
+  { k: 'otetsuki', name: 'お手つき', desc: '合計が違うのにドボンを押すと1枚引く' },
+  { k: 'hint', name: 'ドボンのヒント', desc: 'ドボンできるときにボタンを光らせる（初心者向け）' },
 ];
+const names = (arr) => arr.map((i) => nameOf(i)).join('・');
 const fmtScore = (n) => `${n > 0 ? '+' : ''}${n}点`;
 
 // ------------------------------------------------------------ 描画
@@ -959,7 +1057,7 @@ function renderRulesDoc() {
 
   sec('基本').append(ul([
     '各自5枚配る。場のカードと「同じマーク」か「同じ数字」を出す。',
-    '出せない・出したくないときは山札（またはドローボタン）で1枚引き、出すかパス。',
+    '出せない・出したくないときは山札（またはドローボタン）で引く。何枚でも引けて、引いた後は出すかパス。',
     '最後の1枚は出せない。勝つ方法は「ドボン」だけ。',
     'カードが出た直後の約1.5秒は次の人が動けない（ドボン受付時間）。',
     `持ち時間は${rules.turnSec}秒。切れると自動で1枚引いてパス。`,
@@ -975,10 +1073,16 @@ function renderRulesDoc() {
   cs.append(tbl);
   if (rules.stack) cs.append(el('p', 'muted', '重ね出し：最初の1枚が出せれば、同じ数字を続けて選んで一緒に出せます。最後に選んだカードが場の一番上になります。'));
 
+  if (rules.wild8) cs.append(el('p', 'muted', '8：出すときに「指定したマーク」か「指定したマーク以外」かを選べます。次の人はそれに合うカード（または同じ数字）を出します。'));
+  if (rules.bakiri) cs.append(el('p', 'muted', '場切れ：自分が出したカードの上に誰も出さずに一周して戻ってきたら、どのカードでも出せます。'));
+
   sec('ドボン').append(ul([
     '誰かがカードを出したとき、自分の手札の合計 ＝ そのカードの数字 なら「ドボン！」（A=1, J=11, Q=12, K=13）。',
-    '重ね出しのときは一番上のカードの数字が対象。',
-    'ドボンした人の勝ち、カードを出した人の負け。宣言は次のカードが出るまで有効。キーボードの D キーでも宣言できる。',
+    '重ね出しのときは一番上のカードの数字が対象。宣言は次のカードが出るまで有効。キーボードの D キーでも宣言できる。',
+    '最初のドボンから1秒間は、他の人も重ねてドボンできる（複数ドボン）。1秒たったら締め切り。',
+    'ドボンした人それぞれが、カードを出した人から得点を受け取る。',
+    ...(rules.otetsuki ? ['お手つき：合計が違うのにドボンを押すと1枚引く。'] : []),
+    'ラウンドが終わると10秒後に次のラウンドが自動で始まる（ホストはすぐ始めたり、待合室に戻ったりできる）。',
   ]));
 
   if (rules.kaeshi) {
@@ -986,12 +1090,13 @@ function renderRulesDoc() {
       'ドボンされた人の手札合計が、その数字と「同じ」→ ドボン返し！逆転勝ち。',
       '「大きい」→ そのまま負け。',
       '「小さい」→ 引きドボンに挑戦できる。山札から1枚ずつ引き、合計がちょうどその数字になれば逆転勝ち。超えたら失敗（負けが重くなる）。途中であきらめることもできる。',
+      '複数ドボンのときは、ドボンした全員を相手に判定する。',
     ]));
   }
 
   const ps = sec('得点');
   ps.append(ul([
-    '得点 ＝ ドボンの数字 × 倍率。勝った人が負けた人から受け取る（全員の合計は常に0点）。',
+    '得点 ＝ ドボンの数字 × 倍率。勝った人が負けた人から受け取る（全員の合計は常に0点）。複数ドボンは1人ずつ計算する。',
     ...Object.entries(MULTIPLIERS)
       .filter(([k]) => rules.kaeshi || k === 'tanki')
       .map(([, m]) => `${m.label}：×${m.x}`),
@@ -1040,20 +1145,24 @@ function renderGame() {
   d.append(tc);
   $('deck-count').textContent = `山札 ${g.deckCount}`;
 
-  const bs = $('b-suit'); bs.replaceChildren('マーク ', suitSpan(g.activeSuit));
-  if (g.declaredSuit) bs.append('（8で指定）');
+  const bs = $('b-suit');
+  if (g.free) bs.replaceChildren('場切れ：何でも出せる');
+  else if (g.declaredSuit) bs.replaceChildren('8の指定 ', suitSpan(g.declaredSuit), g.declaredNot ? ' 以外' : ' のみ');
+  else bs.replaceChildren('マーク ', suitSpan(suitOf(top)));
   $('b-pending').hidden = g.pendingDraw === 0;
   $('b-pending').textContent = `ドロー +${g.pendingDraw}`;
   $('b-dir').textContent = g.dir === 1 ? '↻ 時計回り' : '↺ 逆回り';
 
   const tm = $('turn-msg');
   tm.classList.toggle('mine', myTurn);
-  if (g.phase === 'counter') tm.textContent = 'ドボン！ 返しの判断中…';
+  if (g.phase === 'dobon') tm.textContent = 'ドボン！ ほかの人も1秒以内なら重ねてドボンできる';
+  else if (g.phase === 'counter') tm.textContent = 'ドボン！ 返しの判断中…';
   else if (!playing) tm.textContent = 'ラウンド終了';
   else if (myTurn) {
     tm.textContent = g.pendingDraw > 0
       ? `あなたの番 — 2を出すか、${g.pendingDraw}枚ドロー`
-      : g.hasDrawn ? 'あなたの番 — 出すかパス' : 'あなたの番 — 出すかドロー';
+      : g.free ? 'あなたの番 — 場が切れた！好きなカードを出せます'
+        : g.hasDrawn ? 'あなたの番 — 出す・もっと引く・パス' : 'あなたの番 — 出すかドロー';
   } else tm.textContent = `${nameOf(g.turn)} の番`;
 
   // 自分
@@ -1088,19 +1197,26 @@ function renderGame() {
     ? '同じ数字のカードを続けて選ぶと重ねて出せます（最後に選んだカードが一番上）'
     : '';
 
-  const canDraw = myTurn && !(g.hasDrawn && g.pendingDraw === 0);
-  $('deck').disabled = !canDraw;
-  $('btn-draw').disabled = !canDraw;
-  $('btn-draw').textContent = g.pendingDraw > 0 ? `ドロー（${g.pendingDraw}枚）` : 'ドロー';
+  $('deck').disabled = !myTurn;
+  $('btn-draw').disabled = !myTurn;
+  $('btn-draw').textContent = g.pendingDraw > 0 ? `ドロー（${g.pendingDraw}枚）` : g.hasDrawn ? 'もう1枚ドロー' : 'ドロー';
   $('btn-pass').disabled = !myTurn || !g.hasDrawn;
   $('btn-play').hidden = selected.length === 0;
   $('btn-play').textContent = `${selected.length}枚出す`;
   $('btn-unselect').hidden = selected.length === 0;
 
   const lp = g.lastPlay;
-  const canDobon = playing && lp && lp.by !== you;
+  const canDobon = (playing || g.phase === 'dobon') && lp && lp.by !== you && !g.dobons.includes(you);
   $('btn-dobon').disabled = !canDobon;
-  $('btn-dobon').classList.toggle('ready', Boolean(canDobon && sum === rankOf(lp.cards[lp.cards.length - 1])));
+  $('btn-dobon').classList.toggle('ready', Boolean(canDobon && g.rules.hint && sum === g.target));
+
+  // 複数ドボン受付中の表示（ボタンは押せるように画面をふさがない）
+  const db = $('dobon-banner');
+  db.hidden = g.phase !== 'dobon';
+  if (g.phase === 'dobon') {
+    $('dobon-names').textContent = `${names(g.dobons)} → ${nameOf(lp.by)}（${cardText(lp.cards[lp.cards.length - 1])}）`;
+    dobonEnd = now + g.dobonMs;
+  }
 
   renderLog(g.log);
   renderCounter(g);
@@ -1112,7 +1228,7 @@ function renderCounter(g) {
   const box = $('counter');
   if (g.phase !== 'counter' || !g.counter) { box.hidden = true; return; }
   const c = g.counter; const mine = c.victim === state.you;
-  $('counter-text').textContent = `${nameOf(c.by)} が ${nameOf(c.victim)} の ${cardText(c.card)} にドボン！`;
+  $('counter-text').textContent = `${names(c.by)} が ${nameOf(c.victim)} の ${cardText(c.card)} にドボン！`;
   $('counter-info').textContent = `${nameOf(c.victim)} の手札合計 ${c.sum} ／ 目標 ${c.target}（あと ${c.target - c.sum}）`;
   const dr = $('counter-drawn'); dr.replaceChildren();
   c.drawn.forEach((id) => dr.append(cardEl(id)));
@@ -1134,10 +1250,13 @@ function renderLog(log) {
         li.append(`${who}：`);
         e.cards.forEach((id, i) => { if (i) li.append(' '); li.append(el('span', isRed(suitOf(id)) ? 'red' : '', cardText(id))); });
         if (e.cards.length > 1) li.append(`（${e.cards.length}枚）`);
-        if (e.suit) li.append(' → ', suitSpan(e.suit), ' 指定');
+        if (e.suit) li.append(' → ', suitSpan(e.suit), e.not ? ' 以外' : ' 指定');
+        if (e.free) li.append('（場切れ）');
         break;
       }
-      case 'draw': li.textContent = `${who}：1枚引いた`; break;
+      case 'draw': li.textContent = `${who}：${e.n || 1}枚引いた`; break;
+      case 'otetsuki': li.className = 'warn'; li.textContent = `${who}：お手つき！1枚引いた`; break;
+      case 'bakiri': li.textContent = `一周したので場が切れた（${who} は何でも出せる）`; break;
       case 'penalty': li.textContent = `${who}：${e.n}枚引いた`; break;
       case 'pass': li.textContent = `${who}：パス`; break;
       case 'timeout': li.textContent = `${who}：時間切れ`; break;
@@ -1166,37 +1285,50 @@ function renderResult(g) {
     st.style.animation = 'none'; void st.offsetWidth; st.style.animation = '';
   }
   $('result-stamp').textContent = RESULT_TITLE[r.type] || 'ドボン！';
-  const W = nameOf(r.winner); const L = nameOf(r.loser);
+  const V = nameOf(r.victim); const D = names(r.declarers);
   $('result-text').textContent = {
-    dobon: `${W} が ${L} の ${cardText(r.card)} にドボン！`,
-    kaeshi: `${nameOf(r.declarer)} のドボンを ${W} が返した！（${cardText(r.card)}）`,
-    hiki: `${W} が引きドボンで ${r.target} ちょうど！ 逆転勝ち`,
-    burst: `${L} の引きドボンは ${r.target} を超えてしまった…`,
+    dobon: `${D} が ${V} の ${cardText(r.card)} にドボン！`,
+    kaeshi: `${D} のドボンを ${V} が返した！（${cardText(r.card)}）`,
+    hiki: `${V} が引きドボンで ${r.target} ちょうど！ 逆転勝ち`,
+    burst: `${V} の引きドボンは ${r.target} を超えてしまった…`,
   }[r.type] || '';
 
-  // 得点の内訳
+  // 得点の内訳（宣言者ごと）
   const pts = $('result-points'); pts.replaceChildren();
-  const formula = [`${cardText(r.card)} → ${r.target}点`];
-  r.mults.forEach((k) => formula.push(`× ${MULTIPLIERS[k].x}（${MULTIPLIERS[k].label}）`));
-  pts.append(el('span', 'formula', formula.join(' ')), el('b', '', ` ＝ ${r.points}点`));
-  pts.append(el('span', 'transfer', `${L} → ${W}`));
+  const delta = new Array(state.players.length).fill(0);
+  for (const t of r.transfers) {
+    delta[t.to] += t.points; delta[t.from] -= t.points;
+    const line = el('span', 'transfer-line');
+    const formula = [`${r.target}点`, ...t.mults.map((k) => `×${MULTIPLIERS[k].x}（${MULTIPLIERS[k].label}）`)];
+    line.append(`${nameOf(t.from)} → ${nameOf(t.to)}：`, el('span', 'formula', formula.join(' ')), el('b', '', ` ＝ ${t.points}点`));
+    pts.append(line);
+  }
 
   const wrap = $('result-hands'); wrap.replaceChildren();
   r.hands.forEach((h, i) => {
     const p = state.players[i];
-    const row = el('div', `rh${i === r.winner ? ' win' : ''}${i === r.loser ? ' lose' : ''}`);
+    const row = el('div', `rh${delta[i] > 0 ? ' win' : ''}${delta[i] < 0 ? ' lose' : ''}`);
     const nm = el('div', 'rh-name', p.name);
-    const delta = i === r.winner ? `+${r.points}` : i === r.loser ? `-${r.points}` : '±0';
-    nm.append(el('small', '', `${delta} → 計 ${fmtScore(p.score)}`));
+    nm.append(el('small', '', `${delta[i] > 0 ? '+' : delta[i] < 0 ? '' : '±'}${delta[i]} → 計 ${fmtScore(p.score)}`));
     const cards = el('div', 'rh-cards'); h.forEach((c) => cards.append(cardEl(c)));
-    row.append(nm, cards, el('div', 'rh-sum', String(h.reduce((s, c) => s + rankOf(c), 0))));
+    row.append(nm, cards, el('div', 'rh-sum', String(h.reduce((s2, c) => s2 + rankOf(c), 0))));
     wrap.append(row);
   });
+  nextEnd = state.nextMs ? performance.now() + state.nextMs : 0;
   const isHost = state.you === state.host;
   $('btn-next').hidden = !isHost;
   $('btn-lobby').hidden = !isHost;
   $('result-wait').textContent = isHost ? '' : 'ホストが次のラウンドを始めるのを待っています…';
+  updateNextCountdown();
   box.hidden = false;
+}
+
+let dobonEnd = 0;
+let nextEnd = 0;
+function updateNextCountdown() {
+  const el2 = $('next-countdown');
+  const left = nextEnd ? Math.ceil(Math.max(0, nextEnd - performance.now()) / 1000) : 0;
+  el2.textContent = left > 0 ? `${left}秒後に次のラウンドが始まります` : '';
 }
 
 // タイマー表示
@@ -1208,7 +1340,9 @@ function tick() {
     bar.style.width = `${Math.min(100, (left / turnTotal) * 100)}%`;
     bar.classList.toggle('low', left < 8000);
     $('counter-bar').style.width = bar.style.width;
+    if (state.game.phase === 'dobon') $('dobon-bar').style.width = `${Math.min(100, (Math.max(0, dobonEnd - now) / DOBON_MULTI_MS) * 100)}%`;
   } else bar.style.width = '0';
+  updateNextCountdown();
   requestAnimationFrame(tick);
 }
 
@@ -1224,6 +1358,7 @@ function publicRoom(seat) {
     rules: room.rules,
     players: room.seats.map((s) => ({ name: s.name, online: Boolean(s.peer), wins: s.wins, losses: s.losses, score: s.score })),
     turnMs: g && g.phase !== 'ended' ? Math.max(0, room.turnDeadline - Date.now()) : 0,
+    nextMs: g && g.phase === 'ended' && room.autoNextAt ? Math.max(0, room.autoNextAt - Date.now()) : 0,
     game: g ? g.viewFor(seat) : null,
   };
 }
@@ -1247,6 +1382,15 @@ function scheduleTurn() {
   clearTimeout(room.timer);
   const g = room.game;
   if (!g || g.phase === 'ended') return;
+  if (g.phase === 'dobon') {
+    // 重ねドボンの受付（1秒）が終わったら判定
+    const ms = Math.max(0, g.dobonUntil - Date.now()) + 30;
+    room.turnKey = turnKeyOf(g);
+    room.timer = setTimeout(() => {
+      if (room && room.game === g && g.phase === 'dobon') { g.resolveDobon(); afterChange(); }
+    }, ms);
+    return;
+  }
   const who = g.actor();
   const lockMs = g.phase === 'playing' ? Math.max(0, g.lockUntil - Date.now()) : 0;
   const base = g.phase === 'counter' ? COUNTER_MS : g.rules.turnSec * 1000;
@@ -1269,13 +1413,21 @@ function afterChange() {
   if (g && g.phase === 'ended' && !room.scored) {
     // 得点：勝った人が負けた人から受け取る（合計は常に0）
     room.scored = true;
-    const { winner, loser, points } = g.result;
-    room.seats[winner].wins += 1;
-    room.seats[loser].losses += 1;
-    room.seats[winner].score += points;
-    room.seats[loser].score -= points;
-    room.nextFirst = loser;
+    const winners = new Set(); const losers = new Set();
+    for (const t of g.result.transfers) {
+      room.seats[t.to].score += t.points;
+      room.seats[t.from].score -= t.points;
+      winners.add(t.to); losers.add(t.from);
+    }
+    winners.forEach((i) => { room.seats[i].wins += 1; });
+    losers.forEach((i) => { room.seats[i].losses += 1; });
+    room.nextFirst = g.result.loser;
     clearTimeout(room.timer);
+    // 一定時間後に自動で次のラウンドへ
+    room.autoNextAt = Date.now() + AUTO_NEXT_MS;
+    room.timer = setTimeout(() => {
+      if (room && room.game === g && g.phase === 'ended') hostHandle(SELF, { t: 'next' });
+    }, AUTO_NEXT_MS);
   } else if (g && g.phase !== 'ended') {
     if (turnKeyOf(g) !== room.turnKey) scheduleTurn();
   }
@@ -1326,12 +1478,14 @@ function hostHandle(peer, msg) {
       if (msg.t === 'next' && (!g || g.phase !== 'ended')) return err('まだラウンド中です');
       if (room.seats.length < 2) return err('2人以上必要です（4人推奨）');
       room.game = new DobonGame(room.seats.length, room.nextFirst % room.seats.length, room.rules);
+      clearTimeout(room.timer); room.autoNextAt = 0;
       room.round += 1; room.scored = false; room.turnKey = '';
       return afterChange();
     }
     case 'lobby': {
       if (seat !== 0) return err('ホストだけが操作できます');
       if (!g || g.phase !== 'ended') return err('ラウンド中は戻れません');
+      clearTimeout(room.timer); room.autoNextAt = 0;
       room.game = null; // 得点はそのまま。ルール変更や参加者の入れ替えができる
       return afterChange();
     }
@@ -1345,7 +1499,7 @@ function hostHandle(peer, msg) {
       if (!g) return err('ゲームが始まっていません');
       const suit = msg.suit === undefined ? undefined : (SUITS.includes(msg.suit) ? msg.suit : null);
       if (!Array.isArray(msg.cards)) return err('不正なカードです');
-      const r = g.play(seat, msg.cards, suit);
+      const r = g.play(seat, msg.cards, suit, Date.now(), msg.not === true);
       return r.ok ? afterChange() : err(r.err);
     }
     case 'draw':
@@ -1354,8 +1508,10 @@ function hostHandle(peer, msg) {
     case 'challenge':
     case 'giveup': {
       if (!g) return err('ゲームが始まっていません');
-      const r = g[msg.t](seat);
-      return r.ok ? afterChange() : err(r.err);
+      const r = g[msg.t](seat, Date.now());
+      if (!r.ok) return err(r.err);
+      if (r.notice) reply({ t: 'notice', msg: r.notice });
+      return afterChange();
     }
     case 'leave': {
       if (seat === 0) return undefined;
@@ -1477,7 +1633,8 @@ async function guestOnMessage(data, peer) {
 function onGuestMessage(m) {
   switch (m.t) {
     case 'state': applyState(m); break;
-    case 'error': if (typeof m.msg === 'string') toast(m.msg.slice(0, 80)); break;
+    case 'error':
+    case 'notice': if (typeof m.msg === 'string') toast(m.msg.slice(0, 80)); break;
     case 'reject': toast(typeof m.msg === 'string' ? m.msg.slice(0, 80) : '参加できませんでした'); exitRoom(); break;
     case 'closed': toast('ホストが部屋を閉じました'); exitRoom(); break;
     default: break;
@@ -1629,7 +1786,7 @@ $('btn-play').addEventListener('click', () => { if (selected.length) submitPlay(
 $('btn-unselect').addEventListener('click', () => { selected = []; renderGame(); });
 document.querySelectorAll('.suit-btn').forEach((b) => b.addEventListener('click', () => {
   $('suit-dialog').close();
-  if (pendingPlay) act({ t: 'play', cards: pendingPlay, suit: b.dataset.suit });
+  if (pendingPlay) act({ t: 'play', cards: pendingPlay, suit: b.dataset.suit, not: b.dataset.not === '1' });
   pendingPlay = null;
 }));
 $('suit-cancel').addEventListener('click', () => { pendingPlay = null; $('suit-dialog').close(); });
@@ -1675,7 +1832,12 @@ $('btn-rules').addEventListener('click', () => { renderRulesDoc(); const d = $('
 $('rules-close').addEventListener('click', () => $('rules-dialog').close());
 $('btn-rules-lobby').addEventListener('click', () => $('btn-rules').click());
 $('btn-pass').addEventListener('click', () => act({ t: 'pass' }));
-$('btn-dobon').addEventListener('click', () => act({ t: 'dobon' }));
+let lastDobonAt = 0;
+$('btn-dobon').addEventListener('click', () => {
+  if (performance.now() - lastDobonAt < 600) return; // 連打による二重お手つきを防ぐ
+  lastDobonAt = performance.now();
+  act({ t: 'dobon' });
+});
 document.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return;
   if (document.querySelector('dialog[open]')) return;
@@ -1776,6 +1938,13 @@ $('btn-copy').addEventListener('click', async () => {
         <div class="opp opp-left" id="opp-left"></div>
         <div class="opp opp-right" id="opp-right"></div>
 
+        <div id="dobon-banner" class="dobon-banner" hidden>
+          <p class="banner-stamp">ドボン！</p>
+          <p id="dobon-names" class="banner-names"></p>
+          <p class="banner-note">1秒以内ならほかの人も重ねてドボンできる</p>
+          <div class="timer wide"><div id="dobon-bar"></div></div>
+        </div>
+
         <div class="center">
           <div class="piles">
             <button id="deck" class="pile deck" type="button" aria-label="山札から引く">
@@ -1820,12 +1989,20 @@ $('btn-copy').addEventListener('click', async () => {
 
   <!-- 8のマーク指定 -->
   <dialog id="suit-dialog" class="suit-dialog">
-    <p>マークを指定してください</p>
+    <p>8で次のマークを指定</p>
+    <p class="suit-label">このマークを出してもらう</p>
     <div class="suit-choices">
-      <button type="button" data-suit="S" class="suit-btn">♠</button>
-      <button type="button" data-suit="H" class="suit-btn red">♥</button>
-      <button type="button" data-suit="D" class="suit-btn red">♦</button>
-      <button type="button" data-suit="C" class="suit-btn">♣</button>
+      <button type="button" data-suit="S" data-not="0" class="suit-btn">♠</button>
+      <button type="button" data-suit="H" data-not="0" class="suit-btn red">♥</button>
+      <button type="button" data-suit="D" data-not="0" class="suit-btn red">♦</button>
+      <button type="button" data-suit="C" data-not="0" class="suit-btn">♣</button>
+    </div>
+    <p class="suit-label">このマーク<b>以外</b>を出してもらう</p>
+    <div class="suit-choices">
+      <button type="button" data-suit="S" data-not="1" class="suit-btn not">♠<small>以外</small></button>
+      <button type="button" data-suit="H" data-not="1" class="suit-btn not red">♥<small>以外</small></button>
+      <button type="button" data-suit="D" data-not="1" class="suit-btn not red">♦<small>以外</small></button>
+      <button type="button" data-suit="C" data-not="1" class="suit-btn not">♣<small>以外</small></button>
     </div>
     <button type="button" id="suit-cancel" class="btn ghost small">やめる</button>
   </dialog>
@@ -1864,13 +2041,14 @@ $('btn-copy').addEventListener('click', async () => {
         <button id="btn-next" class="btn primary" type="button">次のラウンド</button>
         <button id="btn-lobby" class="btn" type="button">待合室へ（ルール変更）</button>
       </div>
+      <p id="next-countdown" class="next-countdown"></p>
       <p id="result-wait" class="muted center"></p>
     </div>
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <footer class="footer-status">
-    <span id="version">v2.2.0 ・ build 2026-11-15 00:40</span>
+    <span id="version">v2.3.0 ・ build 2026-11-15 01:24</span>
     <span id="netstat"></span>
     <button id="neterr" class="neterr" type="button" hidden>⚠ 接続エラーあり（クリックで詳細）</button>
   </footer>
