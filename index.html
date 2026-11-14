@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ドボン — オンライン対戦</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2y5aaNItZB4xU7WMUWfspIzzpxqyy0aFsxCev9McYiU=' https://cdn.jsdelivr.net; style-src 'sha256-UZTLaFD/8CPPuTZ83yBQU5b/ME6UpRzLP3J4A6kPfbE='; img-src data:; connect-src wss: https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-g6alS2Tl6Q63XDdzygOi7GesrrfOVUe6pVaZiW7AOVo=' https://cdn.jsdelivr.net; style-src 'sha256-d2hSDLn3LvLPg4NG8MMnoF1HVZbIGasvS/23ESHHTgc='; img-src data:; connect-src wss: https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3QgeD0iMTAiIHk9IjQiIHdpZHRoPSI0NCIgaGVpZ2h0PSI1NiIgcng9IjYiIGZpbGw9IiNmYmY3ZWMiIHN0cm9rZT0iIzEzNTczYSIgc3Ryb2tlLXdpZHRoPSIzIi8+PHRleHQgeD0iMzIiIHk9IjQ0IiBmb250LXNpemU9IjMyIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjYzQyNTJmIj7imaU8L3RleHQ+PC9zdmc+Cg==" type="image/svg+xml">
   <style>:root {
@@ -309,7 +309,6 @@ select { font: inherit; font-size: 13px; padding: 4px 6px; border-radius: 6px; }
 
 .me-count { font-size: 12px; color: var(--muted); }
 .danger, .me-count.danger { color: #ff8f86 !important; font-weight: 700; }
-.tag.nopass { margin-left: 6px; background: rgba(226, 72, 61, .3); color: #ffc3bd; }
 
 /* ジョーカー */
 .card.joker { background: linear-gradient(135deg, #fff8e1, #f3e3ff 55%, #e1f4ff); color: #3a2a6b; }
@@ -318,6 +317,51 @@ select { font: inherit; font-size: 13px; padding: 4px 6px; border-radius: 6px; }
 .card.joker .corner { font-size: calc(var(--card-w) * .16); letter-spacing: -.02em; }
 .card.joker .joker-label { position: absolute; left: 0; right: 0; bottom: 14%; text-align: center; font: 700 calc(var(--card-w) * .13) var(--sans); letter-spacing: .08em; }
 .badge.mult { background: var(--gold); color: #2a1c08; border-color: var(--gold); font-weight: 700; }
+
+/* 「あなたの番です」演出 */
+.turn-announce {
+  position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 6; pointer-events: none;
+  display: grid; place-items: center; width: 460px; height: 200px;
+}
+.ta-text {
+  margin: 0; position: relative; font-family: var(--serif); font-weight: 900; font-size: 46px; letter-spacing: .14em; color: #fff7dc;
+  text-shadow: 0 0 18px rgba(217, 180, 90, .95), 0 0 42px rgba(217, 180, 90, .55), 0 3px 0 rgba(0, 0, 0, .4);
+  white-space: nowrap;
+}
+.ta-sub { margin: 4px 0 0; position: relative; font-size: 15px; font-weight: 700; color: var(--gold); text-shadow: 0 2px 6px rgba(0, 0, 0, .6); min-height: 1em; }
+.turn-announce > .ta-text, .turn-announce > .ta-sub { grid-area: 1 / 1; }
+.turn-announce > .ta-sub { transform: translateY(42px); }
+.ta-ring {
+  grid-area: 1 / 1; width: 140px; height: 140px; border-radius: 50%;
+  border: 3px solid rgba(217, 180, 90, .9); box-shadow: 0 0 24px rgba(217, 180, 90, .7), inset 0 0 24px rgba(217, 180, 90, .5);
+  opacity: 0;
+}
+.ta-sparks { grid-area: 1 / 1; position: relative; width: 0; height: 0; }
+.spark {
+  position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, #ffe08a 45%, rgba(217, 180, 90, 0) 70%); opacity: 0;
+}
+.turn-announce.play .ta-text { animation: taText 1.45s cubic-bezier(.2, 1.4, .4, 1) forwards; }
+.turn-announce.play .ta-sub { animation: taSub 1.45s ease forwards; }
+.turn-announce.play .ta-ring { animation: taRing .9s ease-out forwards; }
+.turn-announce.play .spark { animation: taSpark .95s ease-out var(--delay) forwards; }
+@keyframes taText {
+  0% { opacity: 0; transform: scale(.6); filter: blur(4px); }
+  18% { opacity: 1; transform: scale(1.06); filter: blur(0); }
+  30% { transform: scale(1); }
+  72% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.04) translateY(-10px); }
+}
+@keyframes taSub { 0%, 15% { opacity: 0; } 30%, 72% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes taRing { 0% { opacity: .9; transform: scale(.3); } 100% { opacity: 0; transform: scale(3.2); } }
+@keyframes taSpark {
+  0% { opacity: 1; transform: translate(0, 0) scale(1.4); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.4); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .turn-announce.play .ta-ring, .turn-announce.play .spark { animation: none; }
+  .turn-announce.play .ta-text { animation: taSub 1.45s ease forwards; }
+}
 </style>
   <script type="module">// ---- game.js
 /**
@@ -789,7 +833,7 @@ class DobonGame {
       dir: this.dir,
       pendingDraw: this.pendingDraw,
       hasDrawn: myTurn ? this.hasDrawn : false,
-      noPass: this.noPass,
+      noPass: this.noPass[p], // 自分の分だけ（他人のパス不可は見せない）
       roundMults: this.roundMults(),
       free: this.isFree(this.turn),
       deckCount: this.deck.length,
@@ -802,7 +846,8 @@ class DobonGame {
       counter: this.phase === 'counter'
         ? { by: c.by, victim: c.victim, target: c.target, card: c.card, drawn: c.drawn, sum: handSum(this.hands[c.victim]) }
         : null,
-      log: this.log,
+      // 「出せるのにパス」は本人にだけ見せる
+      log: this.log.map((e) => (e.k === 'pass' && e.lock && e.p !== p ? { k: 'pass', p: e.p } : e)),
       result: ended ? this.result : null,
     };
   }
@@ -1215,6 +1260,28 @@ function renderRulesDoc() {
   ]));
 }
 
+// 「あなたの番です」演出：画面中央に出してすぐ消す
+let wasMyTurn = false;
+function announceTurn(g) {
+  const box = $('turn-announce');
+  const sub = g.pendingDraw > 0 ? `2を出すか ${g.pendingDraw}枚ドロー` : g.free ? '場が切れた！ 何でも出せる' : '';
+  $('turn-announce-sub').textContent = sub;
+  const sp = $('turn-sparks'); sp.replaceChildren();
+  for (let i = 0; i < 14; i++) {
+    const d = el('span', 'spark');
+    const ang = (i / 14) * Math.PI * 2 + Math.random() * 0.3;
+    const dist = 110 + Math.random() * 70;
+    d.style.setProperty('--dx', `${Math.cos(ang) * dist}px`);
+    d.style.setProperty('--dy', `${Math.sin(ang) * dist * 0.6}px`);
+    d.style.setProperty('--delay', `${Math.random() * 120}ms`);
+    sp.append(d);
+  }
+  box.hidden = false;
+  box.classList.remove('play'); void box.offsetWidth; box.classList.add('play');
+  clearTimeout(announceTurn.t);
+  announceTurn.t = setTimeout(() => { box.hidden = true; box.classList.remove('play'); }, 1500);
+}
+
 function oppSlots(n) {
   if (n === 2) return { 1: 'top' };
   if (n === 3) return { 1: 'left', 2: 'right' };
@@ -1229,6 +1296,8 @@ function renderGame() {
   turnTotal = Math.max(1, state.turnMs);
   const playing = g.phase === 'playing';
   const myTurn = playing && g.turn === you;
+  if (myTurn && !wasMyTurn) announceTurn(g);
+  wasMyTurn = myTurn;
   if (!myTurn) selected = [];
   selected = selected.filter((c) => g.hand.includes(c));
   if (selected.length && !g.playable.includes(selected[0])) selected = [];
@@ -1245,7 +1314,6 @@ function renderGame() {
     box.append(backs);
     const meta = el('div', 'opp-meta');
     meta.append(el('span', g.rules.handLimit && g.counts[i] >= HAND_LIMIT - 3 ? 'danger' : '', `${g.counts[i]}枚`), ` ・ ${fmtScore(p.score)}`);
-    if (g.noPass[i]) meta.append(el('span', 'tag nopass', 'パス不可'));
     box.append(meta);
   }
 
@@ -1278,7 +1346,7 @@ function renderGame() {
   else if (myTurn) {
     tm.textContent = g.pendingDraw > 0
       ? `あなたの番 — 2を出すか、${g.pendingDraw}枚ドロー`
-      : g.noPass[you] ? 'あなたの番 — 前の番で出せるのにパスしたので、今回はパスできません'
+      : g.noPass ? 'あなたの番 — 前の番で出せるのにパスしたので、今回はパスできません'
       : g.free ? 'あなたの番 — 場が切れた！好きなカードを出せます'
         : g.hasDrawn ? 'あなたの番 — 出す・もっと引く・パス' : 'あなたの番 — 出すかドロー';
   } else tm.textContent = `${nameOf(g.turn)} の番`;
@@ -1322,9 +1390,9 @@ function renderGame() {
   $('btn-draw').disabled = !myTurn;
   $('btn-draw').textContent = g.pendingDraw > 0 ? `ドロー（${g.pendingDraw}枚）` : g.hasDrawn ? 'もう1枚ドロー' : 'ドロー';
   const deckEmpty = g.deckCount === 0;
-  $('btn-pass').disabled = !myTurn || !g.hasDrawn || (g.noPass[you] && !deckEmpty);
+  $('btn-pass').disabled = !myTurn || !g.hasDrawn || (g.noPass && !deckEmpty);
   const couldPlay = myTurn && g.playable.length > 0;
-  $('btn-pass').textContent = g.noPass[you] && myTurn ? 'パス不可' : couldPlay && g.rules.passLock && g.hasDrawn ? 'パス（次はパス不可）' : 'パス';
+  $('btn-pass').textContent = g.noPass && myTurn ? 'パス不可' : couldPlay && g.rules.passLock && g.hasDrawn ? 'パス（次はパス不可）' : 'パス';
   $('btn-play').hidden = selected.length === 0;
   $('btn-play').textContent = `${selected.length}枚出す`;
   $('btn-unselect').hidden = selected.length === 0;
@@ -2067,6 +2135,12 @@ $('btn-copy').addEventListener('click', async () => {
         <div class="opp opp-left" id="opp-left"></div>
         <div class="opp opp-right" id="opp-right"></div>
 
+        <div id="turn-announce" class="turn-announce" hidden aria-live="polite">
+          <span class="ta-ring"></span>
+          <span id="turn-sparks" class="ta-sparks"></span>
+          <p class="ta-text">あなたの番です</p>
+          <p id="turn-announce-sub" class="ta-sub"></p>
+        </div>
         <div id="dobon-banner" class="dobon-banner" hidden>
           <p class="banner-stamp">ドボン！</p>
           <p id="dobon-names" class="banner-names"></p>
@@ -2179,7 +2253,7 @@ $('btn-copy').addEventListener('click', async () => {
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <footer class="footer-status">
-    <span id="version">v2.6.0 ・ build 2026-11-15 01:43</span>
+    <span id="version">v2.7.0 ・ build 2026-11-15 02:06</span>
     <span id="netstat"></span>
     <button id="neterr" class="neterr" type="button" hidden>⚠ 接続エラーあり（クリックで詳細）</button>
   </footer>
