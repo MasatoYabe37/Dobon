@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ドボン — オンライン対戦</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-6BWjpz+zcLTAWyw6U6DR+z+P8HmsnPcEx/SBOhESg+o=' https://cdn.jsdelivr.net; style-src 'sha256-HNJY10bPXaAmYNA1b5HU2Pg3cpNmLInR2ckQvSZP0dE='; img-src data:; connect-src wss: https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-fD7r9vcWfQ/L2BmoTjLlQJrQlXZbFPVlS7PKZY4ZS74=' https://cdn.jsdelivr.net; style-src 'sha256-X9MTAToRhr/9DOneqm4Q2LR0kyw5uPzAy2wkiwfSvDk='; img-src data:; connect-src wss: https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3QgeD0iMTAiIHk9IjQiIHdpZHRoPSI0NCIgaGVpZ2h0PSI1NiIgcng9IjYiIGZpbGw9IiNmYmY3ZWMiIHN0cm9rZT0iIzEzNTczYSIgc3Ryb2tlLXdpZHRoPSIzIi8+PHRleHQgeD0iMzIiIHk9IjQ0IiBmb250LXNpemU9IjMyIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjYzQyNTJmIj7imaU8L3RleHQ+PC9zdmc+Cg==" type="image/svg+xml">
   <style>:root {
@@ -223,11 +223,71 @@ input {
   .opp { min-width: 0; }
   .hand .card { --card-w: 54px; --card-h: 78px; }
 }
+
+.row { display: flex; gap: 8px; }
+.footer-status {
+  position: fixed; left: 10px; bottom: 8px; z-index: 30; display: flex; gap: 10px; align-items: center;
+  font-size: 11px; color: var(--muted); background: rgba(0, 0, 0, .35); padding: 4px 10px; border-radius: 8px;
+  font-family: ui-monospace, monospace; pointer-events: auto;
+}
+.neterr { font: inherit; border: 0; background: none; color: #ffb4ad; cursor: pointer; padding: 0; }
+
+.topbar-right { display: flex; gap: 12px; align-items: center; }
+.center-row { justify-content: center; flex-wrap: wrap; }
+#lobby-seats li .tag + .tag { margin-left: 4px; }
+
+/* ルール設定 */
+.rule-editor { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 10px; background: rgba(0, 0, 0, .18); }
+.rule-head { margin: 0 0 2px; font-size: 12px; color: var(--gold); font-weight: 700; }
+.rule-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, .04); cursor: pointer; }
+.rule-row:not(.on) { opacity: .6; }
+.rule-row input { width: 18px; height: 18px; accent-color: var(--gold); flex: none; }
+.rule-row input:disabled { cursor: default; }
+.rule-spacer { width: 18px; flex: none; }
+.rule-txt { flex: 1; display: flex; flex-direction: column; line-height: 1.35; }
+.rule-txt b { font-size: 13.5px; }
+.rule-txt small { font-size: 11px; color: var(--muted); }
+.onoff { font-size: 11px; font-weight: 700; color: var(--gold); width: 30px; text-align: right; }
+.rule-row:not(.on) .onoff, tr.off .onoff { color: var(--muted); }
+select { font: inherit; font-size: 13px; padding: 4px 6px; border-radius: 6px; }
+
+/* ルール説明 */
+.rules-dialog { border: 1px solid var(--gold); border-radius: 16px; background: #0f3f2a; color: var(--cream); padding: 22px 26px; width: min(680px, 94vw); max-height: 86vh; overflow: auto; }
+.rules-dialog::backdrop { background: rgba(0, 0, 0, .6); }
+.rules-dialog h2 { margin: 0 0 8px; font-family: var(--serif); color: var(--gold); letter-spacing: .1em; }
+.rules-dialog h3 { margin: 18px 0 6px; font-size: 15px; color: var(--gold); border-bottom: 1px solid rgba(217, 180, 90, .3); padding-bottom: 4px; }
+.rules-dialog ul { margin: 0; padding-left: 20px; font-size: 13.5px; line-height: 1.75; }
+.rules-dialog .muted { margin-top: 6px; }
+.rules-dialog > .btn { margin-top: 18px; width: 100%; }
+.rules-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rules-table th, .rules-table td { text-align: left; padding: 7px 6px; border-bottom: 1px solid rgba(255, 255, 255, .08); vertical-align: top; }
+.rules-table th { white-space: nowrap; color: var(--cream); }
+.rules-table tr.off th, .rules-table tr.off td:not(.onoff) { color: var(--muted); text-decoration: line-through; }
+
+/* 手札の選択（重ね出し） */
+.hand .card.selected { transform: translateY(-18px); box-shadow: 0 0 0 3px #fff, 0 0 18px rgba(217, 180, 90, .9); cursor: pointer; }
+.hand .card .order { position: absolute; top: -10px; right: -8px; background: var(--gold); color: #2a1c08; border-radius: 99px; font: 700 12px var(--sans); width: 20px; height: 20px; display: grid; place-items: center; }
+.hand-hint { margin: 0; min-height: 1.2em; font-size: 12px; color: var(--gold); text-align: center; }
+
+/* ドボン返し */
+.counter-info { margin: 0; text-align: center; font-size: 18px; font-family: var(--serif); }
+.counter-drawn { display: flex; gap: 6px; justify-content: center; min-height: 10px; }
+.counter-drawn .card { --card-w: 56px; --card-h: 80px; animation: pop .35s ease-out; }
+.timer.wide { width: 100%; }
+#counter-bar { height: 100%; width: 0; background: var(--gold); }
+
+/* 得点 */
+.result-points { margin: 0; text-align: center; font-size: 15px; display: flex; flex-direction: column; gap: 2px; }
+.result-points b { font-size: 26px; color: var(--gold); font-family: var(--serif); }
+.result-points .transfer { font-size: 12px; color: var(--muted); }
+
+.stamp { line-height: 1.15; margin-bottom: 4px !important; }
+.rules-dialog h2:focus { outline: none; }
 </style>
   <script type="module">// ---- game.js
 /**
  * ドボン ゲームロジック（ホスト権威）。
- * クライアントは「意図」だけを送り、すべての判定はここで行う。
+ * 参加者は「意図」だけを送り、すべての判定はホストのブラウザでここを通して行う。
  *
  * カードID: 0..51  suit = floor(id/13) → S,H,D,C / rank = id%13 + 1 (A=1 … K=13)
  */
@@ -235,11 +295,35 @@ input {
 const SUITS = ['S', 'H', 'D', 'C'];
 const HAND_SIZE = 5;
 const DOBON_WINDOW_MS = 1500; // カードが出た直後、次の手番を待たせる時間（ドボン宣言の猶予）
-const LOG_MAX = 12;
+const LOG_MAX = 14;
+
+/** ホストが待合室で ON/OFF できるルール */
+const DEFAULT_RULES = Object.freeze({
+  skipA: true, // A：次の人をスキップ
+  draw2: true, // 2：次の人は2枚引く（2を重ねて回避・累積）
+  wild8: true, // 8：いつでも出せてマーク指定
+  reverseJ: true, // J：順番を逆回り
+  stack: true, // 同じ数字の重ね出し
+  kaeshi: true, // ドボン返し・引きドボン
+  turnSec: 30, // 持ち時間（秒）
+});
+const TURN_SEC_CHOICES = [15, 30, 60];
+
+/** 受信したルールを検証して正規化（不正値は既定値） */
+function sanitizeRules(r) {
+  const out = { ...DEFAULT_RULES };
+  if (r && typeof r === 'object') {
+    for (const k of Object.keys(DEFAULT_RULES)) {
+      if (k === 'turnSec') { if (TURN_SEC_CHOICES.includes(r.turnSec)) out.turnSec = r.turnSec; } else if (typeof r[k] === 'boolean') out[k] = r[k];
+    }
+  }
+  return out;
+}
 
 const suitOf = (id) => SUITS[Math.floor(id / 13)];
 const rankOf = (id) => (id % 13) + 1;
-const isSpecial = (id) => [1, 2, 8, 11].includes(rankOf(id));
+const handSum = (hand) => hand.reduce((s, id) => s + rankOf(id), 0);
+const sortHand = (hand) => [...hand].sort((a, b) => rankOf(a) - rankOf(b) || a - b);
 
 /** 0..n-1 の一様乱数（Web Crypto・剰余バイアスなし） */
 function randomInt(n) {
@@ -260,20 +344,26 @@ function shuffle(a) {
   return a;
 }
 
-const handSum = (hand) => hand.reduce((s, id) => s + rankOf(id), 0);
-const sortHand = (hand) => [...hand].sort((a, b) => rankOf(a) - rankOf(b) || a - b);
+/** 得点の倍率表（結果画面とルール画面で共通） */
+const MULTIPLIERS = {
+  tanki: { x: 2, label: '単騎ドボン（手札1枚）' },
+  kaeshi: { x: 2, label: 'ドボン返し' },
+  hiki: { x: 3, label: '引きドボン成功' },
+  burst: { x: 2, label: '引きドボン失敗' },
+};
 
 class DobonGame {
-  constructor(numPlayers, firstPlayer = 0) {
+  constructor(numPlayers, firstPlayer = 0, rules = DEFAULT_RULES) {
     if (numPlayers < 2 || numPlayers > 4) throw new Error('players must be 2-4');
+    this.rules = sanitizeRules(rules);
     this.n = numPlayers;
     this.deck = shuffle([...Array(52).keys()]);
     this.hands = Array.from({ length: numPlayers }, () => []);
     for (let k = 0; k < HAND_SIZE; k++) for (let p = 0; p < numPlayers; p++) this.hands[p].push(this.deck.pop());
 
-    // 場札：役札（A,2,8,J）以外が出るまでめくる
+    // 場札：有効な役札以外が出るまでめくる
     let start = this.deck.pop();
-    while (isSpecial(start)) {
+    while (this.isEffectCard(start)) {
       this.deck.unshift(start);
       shuffle(this.deck);
       start = this.deck.pop();
@@ -284,25 +374,48 @@ class DobonGame {
     this.dir = 1;
     this.pendingDraw = 0; // 2の累積ドロー枚数
     this.hasDrawn = false;
-    this.lastPlay = null; // {by, card}
+    this.lastPlay = null; // {by, cards}
     this.lockUntil = 0;
-    this.phase = 'playing';
+    this.phase = 'playing'; // playing | counter（ドボン返しの判断中） | ended
+    this.counter = null;
     this.result = null;
     this.log = [{ k: 'start', card: start }];
+  }
+
+  isEffectCard(id) {
+    const r = rankOf(id); const R = this.rules;
+    return (r === 1 && R.skipA) || (r === 2 && R.draw2) || (r === 8 && R.wild8) || (r === 11 && R.reverseJ);
   }
 
   top() { return this.discard[this.discard.length - 1]; }
   activeSuit() { return this.declaredSuit ?? suitOf(this.top()); }
   isLocked(now) { return now < this.lockUntil; }
 
+  /** 1枚目として出せるか */
   canPlayCard(p, id) {
     const hand = this.hands[p];
     if (!hand.includes(id)) return false;
     if (hand.length < 2) return false; // 最後の1枚は出せない（ドボンでしか勝てない）
     const r = rankOf(id);
     if (this.pendingDraw > 0) return r === 2; // ドロー2は2で返すしかない
-    if (r === 8) return true; // 8はワイルド
+    if (r === 8 && this.rules.wild8) return true; // 8はワイルド
     return suitOf(id) === this.activeSuit() || r === rankOf(this.top());
+  }
+
+  /** 複数枚（同じ数字の重ね出し）を含めて出せるか。エラーメッセージ or null */
+  checkSet(p, ids) {
+    if (!Array.isArray(ids) || ids.length < 1 || ids.length > 4) return '不正なカードです';
+    if (!ids.every((id) => Number.isInteger(id) && id >= 0 && id <= 51)) return '不正なカードです';
+    if (new Set(ids).size !== ids.length) return '同じカードが重複しています';
+    const hand = this.hands[p];
+    if (!ids.every((id) => hand.includes(id))) return 'そのカードは持っていません';
+    if (hand.length - ids.length < 1) return '最後の1枚は出せません';
+    if (ids.length > 1) {
+      if (!this.rules.stack) return '重ね出しはこの部屋では使えません';
+      if (!ids.every((id) => rankOf(id) === rankOf(ids[0]))) return '重ねられるのは同じ数字だけです';
+    }
+    if (!this.canPlayCard(p, ids[0])) return 'そのカードは出せません';
+    return null;
   }
 
   _pushLog(e) {
@@ -315,51 +428,60 @@ class DobonGame {
     this.hasDrawn = false;
   }
 
+  _drawOne() {
+    if (this.deck.length === 0) {
+      const top = this.discard.pop();
+      this.deck = shuffle(this.discard);
+      this.discard = [top];
+      if (this.deck.length === 0) return null; // 山札も捨て札も尽きた
+      this._pushLog({ k: 'reshuffle' });
+    }
+    return this.deck.pop();
+  }
+
   _drawN(p, k) {
     let got = 0;
     for (let i = 0; i < k; i++) {
-      if (this.deck.length === 0) {
-        const top = this.discard.pop();
-        this.deck = shuffle(this.discard);
-        this.discard = [top];
-        if (this.deck.length === 0) break; // 山札も捨て札も尽きた
-        this._pushLog({ k: 'reshuffle' });
-      }
-      this.hands[p].push(this.deck.pop());
+      const c = this._drawOne();
+      if (c === null) break;
+      this.hands[p].push(c);
       got++;
     }
     return got;
   }
 
   _checkTurn(p, now) {
+    if (this.phase === 'counter') return 'ドボン返しの判断中です';
     if (this.phase !== 'playing') return 'ゲームは終了しています';
     if (p !== this.turn) return 'あなたの手番ではありません';
     if (this.isLocked(now)) return 'ドボン受付中です。少し待ってください';
     return null;
   }
 
-  play(p, id, suit, now = Date.now()) {
+  /** cards: カードID または ID配列（同じ数字の重ね出し。最後のカードが場の一番上になる） */
+  play(p, cards, suit, now = Date.now()) {
     const err = this._checkTurn(p, now);
     if (err) return { ok: false, err };
-    if (!Number.isInteger(id) || id < 0 || id > 51) return { ok: false, err: '不正なカードです' };
-    if (!this.hands[p].includes(id)) return { ok: false, err: 'そのカードは持っていません' };
-    if (this.hands[p].length < 2) return { ok: false, err: '最後の1枚は出せません' };
-    if (!this.canPlayCard(p, id)) return { ok: false, err: 'そのカードは出せません' };
-    const r = rankOf(id);
-    if (r === 8 && !SUITS.includes(suit)) return { ok: false, err: 'スートを指定してください' };
+    const ids = Array.isArray(cards) ? cards : [cards];
+    const e2 = this.checkSet(p, ids);
+    if (e2) return { ok: false, err: e2 };
+    const r = rankOf(ids[0]);
+    const wild = r === 8 && this.rules.wild8;
+    if (wild && !SUITS.includes(suit)) return { ok: false, err: 'マークを指定してください' };
 
-    this.hands[p].splice(this.hands[p].indexOf(id), 1);
-    this.discard.push(id);
-    this.declaredSuit = r === 8 ? suit : null;
-    this.lastPlay = { by: p, card: id };
+    let skips = 0;
+    for (const id of ids) {
+      this.hands[p].splice(this.hands[p].indexOf(id), 1);
+      this.discard.push(id);
+      if (r === 2 && this.rules.draw2) this.pendingDraw += 2;
+      if (r === 11 && this.rules.reverseJ) this.dir *= -1;
+      if (r === 1 && this.rules.skipA) skips += 1;
+    }
+    this.declaredSuit = wild ? suit : null;
+    this.lastPlay = { by: p, cards: ids };
     this.lockUntil = now + DOBON_WINDOW_MS;
-    this._pushLog({ k: 'play', p, card: id, suit: r === 8 ? suit : undefined });
-
-    let steps = 1;
-    if (r === 2) this.pendingDraw += 2;
-    if (r === 11) this.dir *= -1;
-    if (r === 1) steps = 2;
-    this._advance(steps);
+    this._pushLog({ k: 'play', p, cards: ids, suit: wild ? suit : undefined });
+    this._advance(1 + Math.min(skips, this.n - 1));
     return { ok: true };
   }
 
@@ -391,30 +513,75 @@ class DobonGame {
   }
 
   dobon(p) {
+    if (this.phase === 'counter') return { ok: false, err: 'すでにドボンが宣言されています' };
     if (this.phase !== 'playing') return { ok: false, err: 'ゲームは終了しています' };
     const lp = this.lastPlay;
     if (!lp) return { ok: false, err: 'まだ誰もカードを出していません' };
     if (lp.by === p) return { ok: false, err: '自分の出したカードではドボンできません' };
-    const target = rankOf(lp.card);
+    const card = lp.cards[lp.cards.length - 1];
+    const target = rankOf(card);
     if (handSum(this.hands[p]) !== target) return { ok: false, err: `手札の合計が ${target} ではありません` };
 
-    // 返しドボン：出した本人の手札合計も同じ数なら逆転
-    const kaeshi = handSum(this.hands[lp.by]) === target;
-    this.phase = 'ended';
-    this.result = {
-      type: kaeshi ? 'kaeshi' : 'dobon',
-      winner: kaeshi ? lp.by : p,
-      loser: kaeshi ? p : lp.by,
-      declarer: p,
-      card: lp.card,
-      hands: this.hands.map(sortHand),
-    };
-    this._pushLog({ k: kaeshi ? 'kaeshi' : 'dobon', p, target: lp.by });
+    const victim = lp.by;
+    this._pushLog({ k: 'dobon', p, target: victim });
+    if (!this.rules.kaeshi) { this._finish('dobon', p, victim, p, card); return { ok: true }; }
+
+    const vs = handSum(this.hands[victim]);
+    if (vs === target) {
+      // ドボン返し：ドボンされた人の手札合計も同じ数 → 逆転
+      this._pushLog({ k: 'kaeshi', p: victim });
+      this._finish('kaeshi', victim, p, p, card);
+    } else if (vs > target) {
+      this._finish('dobon', p, victim, p, card); // 大きい → そのまま負け
+    } else {
+      // 小さい → 引きドボンに挑戦できる
+      this.phase = 'counter';
+      this.counter = { by: p, victim, target, card, drawn: [] };
+    }
     return { ok: true };
   }
 
-  /** 手番タイムアウト時の自動行動 */
+  /** 引きドボン：1枚引いて合計がちょうどなら逆転、超えたら失敗 */
+  challenge(p) {
+    if (this.phase !== 'counter' || p !== this.counter.victim) return { ok: false, err: '今は引きドボンできません' };
+    const c = this.counter;
+    const card = this._drawOne();
+    if (card === null) return this.giveup(p);
+    this.hands[p].push(card);
+    c.drawn.push(card);
+    this._pushLog({ k: 'hikidraw', p, card });
+    const s = handSum(this.hands[p]);
+    if (s === c.target) { this._pushLog({ k: 'hiki', p }); this._finish('hiki', p, c.by, c.by, c.card); } else if (s > c.target) { this._pushLog({ k: 'burst', p }); this._finish('burst', c.by, p, c.by, c.card); }
+    return { ok: true };
+  }
+
+  giveup(p) {
+    if (this.phase !== 'counter' || p !== this.counter.victim) return { ok: false, err: '今はできません' };
+    this._pushLog({ k: 'giveup', p });
+    this._finish('dobon', this.counter.by, p, this.counter.by, this.counter.card);
+    return { ok: true };
+  }
+
+  _finish(type, winner, loser, declarer, card) {
+    const target = rankOf(card);
+    const mults = [];
+    if (type === 'kaeshi') mults.push('kaeshi');
+    if (type === 'hiki') mults.push('hiki');
+    if (type === 'burst') mults.push('burst');
+    if ((type === 'dobon' || type === 'kaeshi') && this.hands[winner].length === 1) mults.push('tanki');
+    const x = mults.reduce((m, k) => m * MULTIPLIERS[k].x, 1);
+    this.phase = 'ended';
+    this.result = {
+      type, winner, loser, declarer, card, target,
+      drawn: this.counter ? this.counter.drawn : [],
+      mults, points: target * x,
+      hands: this.hands.map(sortHand),
+    };
+  }
+
+  /** 手番（または引きドボン判断）タイムアウト時の自動行動 */
   autoAct(now = Date.now()) {
+    if (this.phase === 'counter') { this.giveup(this.counter.victim); return; }
     if (this.phase !== 'playing') return;
     const p = this.turn;
     this.lockUntil = 0;
@@ -426,12 +593,21 @@ class DobonGame {
     }
   }
 
+  /** いま誰の操作待ちか（タイマー用） */
+  actor() {
+    if (this.phase === 'counter') return this.counter.victim;
+    if (this.phase === 'playing') return this.turn;
+    return -1;
+  }
+
   /** プレイヤーpに見せてよい情報だけを返す（他人の手札は枚数のみ） */
   viewFor(p, now = Date.now()) {
     const ended = this.phase === 'ended';
-    const myTurn = !ended && this.turn === p;
+    const myTurn = this.phase === 'playing' && this.turn === p;
+    const c = this.counter;
     return {
       phase: this.phase,
+      rules: this.rules,
       hand: sortHand(this.hands[p]),
       counts: this.hands.map((h) => h.length),
       top: this.top(),
@@ -445,6 +621,9 @@ class DobonGame {
       lockMs: Math.max(0, this.lockUntil - now),
       lastPlay: this.lastPlay,
       playable: myTurn ? this.hands[p].filter((id) => this.canPlayCard(p, id)) : [],
+      counter: this.phase === 'counter'
+        ? { by: c.by, victim: c.victim, target: c.target, card: c.card, drawn: c.drawn, sum: handSum(this.hands[c.victim]) }
+        : null,
       log: this.log,
       result: ended ? this.result : null,
     };
@@ -454,7 +633,9 @@ class DobonGame {
   toJSON() { return { ...this }; }
 
   static fromJSON(o) {
-    return Object.assign(Object.create(DobonGame.prototype), o);
+    const g = Object.assign(Object.create(DobonGame.prototype), o);
+    g.rules = sanitizeRules(o.rules);
+    return g;
   }
 }
 
@@ -470,11 +651,43 @@ class DobonGame {
 const TRYSTERO_URL = 'https://cdn.jsdelivr.net/npm/trystero@0.25.4/+esm';
 const APP_ID = 'dobon-online-p2p-v1';
 const ACTION = 'dobon'; // アクション名（短く）
+const TURN_KEY = 'dobon.turn';
+
+// NAT 越えの成功率を上げるため STUN を複数指定
+const STUN = [
+  'stun:stun.l.google.com:19302',
+  'stun:stun1.l.google.com:19302',
+  'stun:stun.cloudflare.com:3478',
+];
 
 let lib = null;
 async function loadLib() {
   if (!lib) lib = await import(TRYSTERO_URL);
   return lib;
+}
+
+/** 利用者が設定した TURN サーバー（localStorage） */
+function getTurn() {
+  try {
+    const t = JSON.parse(localStorage.getItem(TURN_KEY));
+    if (t && typeof t.url === 'string' && /^turns?:/.test(t.url)) return t;
+  } catch { /* ignore */ }
+  return null;
+}
+function setTurn(t) {
+  try {
+    if (t) localStorage.setItem(TURN_KEY, JSON.stringify(t));
+    else localStorage.removeItem(TURN_KEY);
+  } catch { /* ignore */ }
+}
+
+/** リレーの接続状況 {open, total} */
+function relayStatus() {
+  if (!lib || typeof lib.getRelaySockets !== 'function') return null;
+  try {
+    const socks = Object.values(lib.getRelaySockets() || {});
+    return { open: socks.filter((s) => s && s.readyState === 1).length, total: socks.length };
+  } catch { return null; }
 }
 
 /**
@@ -484,11 +697,18 @@ async function loadLib() {
  */
 async function connectRoom(code, h) {
   const T = await loadLib();
-  const room = T.joinRoom(
-    { appId: APP_ID, password: `dobon/${code}` },
-    `dobon-${code}`,
-    { onJoinError: (d) => h.onError && h.onError(d) },
-  );
+  const turn = getTurn();
+  const config = {
+    appId: APP_ID,
+    password: `dobon/${code}`,
+    rtcConfig: { iceServers: [{ urls: STUN }] },
+  };
+  if (turn) {
+    config.turnConfig = [{ urls: [turn.url], username: turn.username || undefined, credential: turn.credential || undefined }];
+  }
+  const room = T.joinRoom(config, `dobon-${code}`, {
+    onJoinError: (d) => h.onError && h.onError(d || {}),
+  });
 
   // v0.25 以降（オブジェクト形式）と旧版（配列形式）の両方に対応
   const action = room.makeAction(ACTION);
@@ -501,16 +721,23 @@ async function connectRoom(code, h) {
     send = (data, target) => action.send(data, target ? { target } : undefined);
     action.onMessage = (data, info) => h.onMessage(data, typeof info === 'string' ? info : info && info.peerId);
   }
+  const peers = new Set();
   const bind = (key, fn) => {
     if (typeof room[key] === 'function') room[key](fn); // 旧版：登録関数
     else room[key] = fn; // v0.25：プロパティ代入
   };
-  bind('onPeerJoin', (id) => h.onPeerJoin(id));
-  bind('onPeerLeave', (id) => h.onPeerLeave(id));
+  bind('onPeerJoin', (id) => { peers.add(id); h.onPeerJoin(id); });
+  bind('onPeerLeave', (id) => { peers.delete(id); h.onPeerLeave(id); });
 
   return {
     selfId: T.selfId,
-    send: (data, target) => { try { send(data, target); } catch (e) { console.warn('send failed', e); } },
+    peerCount: () => peers.size,
+    send: (data, target) => {
+      try {
+        const p = send(data, target);
+        if (p && typeof p.catch === 'function') p.catch((e) => console.warn('send failed', e));
+      } catch (e) { console.warn('send failed', e); }
+    },
     leave: () => { try { room.leave(); } catch { /* ignore */ } },
   };
 }
@@ -533,7 +760,7 @@ const RANK = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', '
 const isRed = (s) => s === 'H' || s === 'D';
 
 const MAX_PLAYERS = 4;
-const TURN_MS = 30_000;
+const COUNTER_MS = 20_000; // 引きドボンの判断時間
 const OFFLINE_TURN_MS = 4_000;
 const MAX_MSG_BYTES = 4096;
 const CODE_LEN = 12;
@@ -600,7 +827,8 @@ let lastTop = null;
 let lockEnd = 0;
 let turnEnd = 0;
 let turnTotal = 1;
-let pendingEight = null;
+let pendingPlay = null; // 8を出すときのマーク選択待ち
+let selected = []; // 重ね出しで選択中のカード（選んだ順）
 
 // ホスト用
 let room = null;
@@ -652,10 +880,21 @@ function showScreen(name) {
 }
 const nameOf = (i) => (state && state.players[i] ? state.players[i].name : '?');
 
+// ------------------------------------------------------------ ルール定義（表示用）
+const RULE_DEFS = [
+  { k: 'skipA', name: 'A：スキップ', desc: '次の人の番をとばす（重ねた枚数ぶん、とばす人数が増える）' },
+  { k: 'draw2', name: '2：ドロー2', desc: '次の人は2枚引く。2を出し返せば回避でき、枚数は累積する' },
+  { k: 'wild8', name: '8：ワイルド', desc: 'いつでも出せて、次のマークを指定できる' },
+  { k: 'reverseJ', name: 'J：リバース', desc: '順番が逆回りになる' },
+  { k: 'stack', name: '同じ数字の重ね出し', desc: '同じ数字のカードを何枚かまとめて出せる（効果は枚数ぶん）' },
+  { k: 'kaeshi', name: 'ドボン返し・引きドボン', desc: 'ドボンされた人が逆転を狙える' },
+];
+const fmtScore = (n) => `${n > 0 ? '+' : ''}${n}点`;
+
 // ------------------------------------------------------------ 描画
 function render() {
   if (!state) return;
-  if (!state.game) { renderLobby(); showScreen('lobby'); $('result').hidden = true; return; }
+  if (!state.game) { selected = []; renderLobby(); showScreen('lobby'); $('result').hidden = true; $('counter').hidden = true; return; }
   showScreen('game');
   renderGame();
 }
@@ -668,6 +907,7 @@ function renderLobby() {
     if (!p) { list.append(el('li', 'empty', '空席')); continue; }
     const li = el('li', '', p.name);
     const tags = el('span');
+    if (state.round > 0) tags.append(el('span', 'tag', fmtScore(p.score)));
     if (i === state.host) tags.append(el('span', 'tag', 'ホスト'));
     if (i === state.you) tags.append(el('span', 'tag', 'あなた'));
     if (!p.online) tags.append(el('span', 'tag', '切断中'));
@@ -679,6 +919,85 @@ function renderLobby() {
   $('btn-start').textContent = state.players.length < 4 ? `${state.players.length}人で開始（4人推奨）` : '4人でゲーム開始';
   $('lobby-wait').textContent = isHost ? '' : 'ホストの開始を待っています…';
   $('btn-leave').textContent = isHost ? '部屋を閉じる' : '部屋を出る';
+  renderRuleEditor(state.rules || DEFAULT_RULES, isHost);
+}
+
+/** 待合室のルール設定（ホストは変更可、参加者は閲覧のみ） */
+function renderRuleEditor(rules, editable) {
+  const box = $('rule-editor'); box.replaceChildren();
+  box.append(el('p', 'rule-head', editable ? 'ルール設定（ホストのみ変更できます）' : 'この部屋のルール'));
+  const send = (patch) => act({ t: 'rules', rules: { ...rules, ...patch } });
+  for (const d of RULE_DEFS) {
+    const row = el('label', `rule-row${rules[d.k] ? ' on' : ''}`);
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = rules[d.k]; cb.disabled = !editable;
+    cb.addEventListener('change', () => send({ [d.k]: cb.checked }));
+    const txt = el('span', 'rule-txt');
+    txt.append(el('b', '', d.name), el('small', '', d.desc));
+    row.append(cb, txt, el('span', 'onoff', rules[d.k] ? 'ON' : 'OFF'));
+    box.append(row);
+  }
+  const trow = el('label', 'rule-row on');
+  const sel = document.createElement('select');
+  sel.disabled = !editable;
+  for (const sec of TURN_SEC_CHOICES) {
+    const o = el('option', '', `${sec}秒`); o.value = String(sec); o.selected = rules.turnSec === sec; sel.append(o);
+  }
+  sel.addEventListener('change', () => send({ turnSec: Number(sel.value) }));
+  const ttxt = el('span', 'rule-txt'); ttxt.append(el('b', '', '持ち時間'), el('small', '', '時間切れになると自動で1枚引いてパス'));
+  trow.append(el('span', 'rule-spacer'), ttxt, sel);
+  box.append(trow);
+}
+
+/** ルール説明（ダイアログ）。部屋にいればその部屋の設定を反映 */
+function renderRulesDoc() {
+  const rules = (state && state.rules) || DEFAULT_RULES;
+  const body = $('rules-body'); body.replaceChildren();
+  const sec = (title) => { const s = el('section'); s.append(el('h3', '', title)); body.append(s); return s; };
+  const ul = (items) => { const u = el('ul'); items.forEach((t) => u.append(el('li', '', t))); return u; };
+  if (state) body.append(el('p', 'muted', 'この部屋の設定で表示しています。'));
+
+  sec('基本').append(ul([
+    '各自5枚配る。場のカードと「同じマーク」か「同じ数字」を出す。',
+    '出せない・出したくないときは山札（またはドローボタン）で1枚引き、出すかパス。',
+    '最後の1枚は出せない。勝つ方法は「ドボン」だけ。',
+    'カードが出た直後の約1.5秒は次の人が動けない（ドボン受付時間）。',
+    `持ち時間は${rules.turnSec}秒。切れると自動で1枚引いてパス。`,
+  ]));
+
+  const cs = sec('カードの効果');
+  const tbl = el('table', 'rules-table');
+  for (const d of RULE_DEFS) {
+    const tr = el('tr', rules[d.k] ? '' : 'off');
+    tr.append(el('th', '', d.name), el('td', '', d.desc), el('td', 'onoff', rules[d.k] ? 'ON' : 'OFF'));
+    tbl.append(tr);
+  }
+  cs.append(tbl);
+  if (rules.stack) cs.append(el('p', 'muted', '重ね出し：最初の1枚が出せれば、同じ数字を続けて選んで一緒に出せます。最後に選んだカードが場の一番上になります。'));
+
+  sec('ドボン').append(ul([
+    '誰かがカードを出したとき、自分の手札の合計 ＝ そのカードの数字 なら「ドボン！」（A=1, J=11, Q=12, K=13）。',
+    '重ね出しのときは一番上のカードの数字が対象。',
+    'ドボンした人の勝ち、カードを出した人の負け。宣言は次のカードが出るまで有効。キーボードの D キーでも宣言できる。',
+  ]));
+
+  if (rules.kaeshi) {
+    sec('ドボン返し・引きドボン').append(ul([
+      'ドボンされた人の手札合計が、その数字と「同じ」→ ドボン返し！逆転勝ち。',
+      '「大きい」→ そのまま負け。',
+      '「小さい」→ 引きドボンに挑戦できる。山札から1枚ずつ引き、合計がちょうどその数字になれば逆転勝ち。超えたら失敗（負けが重くなる）。途中であきらめることもできる。',
+    ]));
+  }
+
+  const ps = sec('得点');
+  ps.append(ul([
+    '得点 ＝ ドボンの数字 × 倍率。勝った人が負けた人から受け取る（全員の合計は常に0点）。',
+    ...Object.entries(MULTIPLIERS)
+      .filter(([k]) => rules.kaeshi || k === 'tanki')
+      .map(([, m]) => `${m.label}：×${m.x}`),
+    '倍率は重なると掛け算。例：K(13)で単騎ドボン返し → 13×2×2＝52点',
+    '次のラウンドは負けた人から始まる。',
+  ]));
 }
 
 function oppSlots(n) {
@@ -694,6 +1013,10 @@ function renderGame() {
   turnEnd = now + state.turnMs;
   turnTotal = Math.max(1, state.turnMs);
   const playing = g.phase === 'playing';
+  const myTurn = playing && g.turn === you;
+  if (!myTurn) selected = [];
+  selected = selected.filter((c) => g.hand.includes(c));
+  if (selected.length && !g.playable.includes(selected[0])) selected = [];
 
   // 対戦相手
   for (const pos of ['top', 'left', 'right']) $(`opp-${pos}`).replaceChildren();
@@ -705,7 +1028,7 @@ function renderGame() {
     const backs = el('div', 'mini-backs');
     for (let k = 0; k < Math.min(g.counts[i], 12); k++) backs.append(cardEl(null));
     box.append(backs);
-    box.append(el('div', 'opp-meta', `${g.counts[i]}枚 ・ ${p.wins}勝${p.losses}敗`));
+    box.append(el('div', 'opp-meta', `${g.counts[i]}枚 ・ ${fmtScore(p.score)}`));
   }
 
   // 場
@@ -723,14 +1046,14 @@ function renderGame() {
   $('b-pending').textContent = `ドロー +${g.pendingDraw}`;
   $('b-dir').textContent = g.dir === 1 ? '↻ 時計回り' : '↺ 逆回り';
 
-  const myTurn = playing && g.turn === you;
   const tm = $('turn-msg');
   tm.classList.toggle('mine', myTurn);
-  if (!playing) tm.textContent = 'ラウンド終了';
+  if (g.phase === 'counter') tm.textContent = 'ドボン！ 返しの判断中…';
+  else if (!playing) tm.textContent = 'ラウンド終了';
   else if (myTurn) {
     tm.textContent = g.pendingDraw > 0
-      ? `あなたの番 — 2を重ねるか、山札から${g.pendingDraw}枚引く`
-      : g.hasDrawn ? 'あなたの番 — 出すかパス' : 'あなたの番 — 出すか山札から1枚引く';
+      ? `あなたの番 — 2を出すか、${g.pendingDraw}枚ドロー`
+      : g.hasDrawn ? 'あなたの番 — 出すかパス' : 'あなたの番 — 出すかドロー';
   } else tm.textContent = `${nameOf(g.turn)} の番`;
 
   // 自分
@@ -738,31 +1061,66 @@ function renderGame() {
   $('me-name').textContent = me.name;
   const sum = g.hand.reduce((s, c) => s + rankOf(c), 0);
   $('me-sum').textContent = String(sum);
-  $('me-score').textContent = `${me.wins}勝${me.losses}敗 ・ 第${state.round}ラウンド`;
+  $('me-score').textContent = `${fmtScore(me.score)} ・ ${me.wins}勝${me.losses}敗 ・ 第${state.round}ラウンド`;
   document.querySelector('.me').classList.toggle('turn', myTurn);
 
   const hand = $('hand'); hand.replaceChildren();
   const playable = new Set(g.playable);
+  const selRank = selected.length ? rankOf(selected[0]) : null;
   for (const id of g.hand) {
     const c = cardEl(id);
-    if (myTurn) c.classList.add(playable.has(id) ? 'playable' : 'dim');
-    if (playable.has(id)) {
-      c.tabIndex = 0; c.setAttribute('role', 'button');
-      c.addEventListener('click', () => playCard(id));
-      c.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playCard(id); } });
+    let clickable = false;
+    if (myTurn) {
+      if (selected.includes(id)) { c.classList.add('selected'); clickable = true; c.dataset.order = String(selected.indexOf(id) + 1); } else if (selRank !== null) {
+        const can = rankOf(id) === selRank && g.hand.length - selected.length - 1 >= 1;
+        c.classList.add(can ? 'playable' : 'dim'); clickable = can;
+      } else { c.classList.add(playable.has(id) ? 'playable' : 'dim'); clickable = playable.has(id); }
     }
+    if (clickable) {
+      c.tabIndex = 0; c.setAttribute('role', 'button');
+      c.addEventListener('click', () => onCardClick(id));
+      c.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onCardClick(id); } });
+    }
+    if (selected.includes(id)) c.append(el('span', 'order', String(selected.indexOf(id) + 1)));
     hand.append(c);
   }
-  $('deck').disabled = !myTurn || (g.hasDrawn && g.pendingDraw === 0);
+  $('hand-hint').textContent = selected.length
+    ? '同じ数字のカードを続けて選ぶと重ねて出せます（最後に選んだカードが一番上）'
+    : '';
+
+  const canDraw = myTurn && !(g.hasDrawn && g.pendingDraw === 0);
+  $('deck').disabled = !canDraw;
+  $('btn-draw').disabled = !canDraw;
+  $('btn-draw').textContent = g.pendingDraw > 0 ? `ドロー（${g.pendingDraw}枚）` : 'ドロー';
   $('btn-pass').disabled = !myTurn || !g.hasDrawn;
+  $('btn-play').hidden = selected.length === 0;
+  $('btn-play').textContent = `${selected.length}枚出す`;
+  $('btn-unselect').hidden = selected.length === 0;
 
   const lp = g.lastPlay;
   const canDobon = playing && lp && lp.by !== you;
   $('btn-dobon').disabled = !canDobon;
-  $('btn-dobon').classList.toggle('ready', Boolean(canDobon && sum === rankOf(lp.card)));
+  $('btn-dobon').classList.toggle('ready', Boolean(canDobon && sum === rankOf(lp.cards[lp.cards.length - 1])));
 
   renderLog(g.log);
+  renderCounter(g);
   renderResult(g);
+}
+
+/** ドボン返し（引きドボン）の判断中 */
+function renderCounter(g) {
+  const box = $('counter');
+  if (g.phase !== 'counter' || !g.counter) { box.hidden = true; return; }
+  const c = g.counter; const mine = c.victim === state.you;
+  $('counter-text').textContent = `${nameOf(c.by)} が ${nameOf(c.victim)} の ${cardText(c.card)} にドボン！`;
+  $('counter-info').textContent = `${nameOf(c.victim)} の手札合計 ${c.sum} ／ 目標 ${c.target}（あと ${c.target - c.sum}）`;
+  const dr = $('counter-drawn'); dr.replaceChildren();
+  c.drawn.forEach((id) => dr.append(cardEl(id)));
+  $('counter-actions').hidden = !mine;
+  $('counter-wait').textContent = mine
+    ? `山札から1枚ずつ引いて、合計がちょうど ${c.target} なら逆転（×${MULTIPLIERS.hiki.x}）。超えると失敗（×${MULTIPLIERS.burst.x}）。`
+    : `${nameOf(c.victim)} が引きドボンに挑戦するか考えています…`;
+  box.hidden = false;
 }
 
 function renderLog(log) {
@@ -773,12 +1131,10 @@ function renderLog(log) {
     switch (e.k) {
       case 'start': li.append('場札 ', cardText(e.card), ' でスタート'); break;
       case 'play': {
-        li.append(`${who}：`, el('span', isRed(suitOf(e.card)) ? 'red' : '', cardText(e.card)));
+        li.append(`${who}：`);
+        e.cards.forEach((id, i) => { if (i) li.append(' '); li.append(el('span', isRed(suitOf(id)) ? 'red' : '', cardText(id))); });
+        if (e.cards.length > 1) li.append(`（${e.cards.length}枚）`);
         if (e.suit) li.append(' → ', suitSpan(e.suit), ' 指定');
-        const r = rankOf(e.card);
-        if (r === 1) li.append('（スキップ）');
-        if (r === 2) li.append('（ドロー2）');
-        if (r === 11) li.append('（リバース）');
         break;
       }
       case 'draw': li.textContent = `${who}：1枚引いた`; break;
@@ -787,13 +1143,18 @@ function renderLog(log) {
       case 'timeout': li.textContent = `${who}：時間切れ`; break;
       case 'reshuffle': li.textContent = '山札を切り直し'; break;
       case 'dobon': li.className = 'hot'; li.textContent = `${who}：ドボン！ → ${nameOf(e.target)}`; break;
-      case 'kaeshi': li.className = 'hot'; li.textContent = `${nameOf(e.target)}：返しドボン！`; break;
+      case 'kaeshi': li.className = 'hot'; li.textContent = `${who}：ドボン返し！`; break;
+      case 'hikidraw': li.append(`${who}：引きドボン `, cardText(e.card)); break;
+      case 'hiki': li.className = 'hot'; li.textContent = `${who}：引きドボン成功！`; break;
+      case 'burst': li.className = 'hot'; li.textContent = `${who}：引きドボン失敗`; break;
+      case 'giveup': li.textContent = `${who}：あきらめた`; break;
       default: break;
     }
     ol.append(li);
   }
 }
 
+const RESULT_TITLE = { dobon: 'ドボン！', kaeshi: 'ドボン返し！', hiki: '引きドボン成功！', burst: '引きドボン失敗…' };
 let shownResultRound = -1;
 function renderResult(g) {
   const box = $('result');
@@ -804,22 +1165,36 @@ function renderResult(g) {
     const st = $('result-stamp');
     st.style.animation = 'none'; void st.offsetWidth; st.style.animation = '';
   }
-  $('result-stamp').textContent = r.type === 'kaeshi' ? '返しドボン！' : 'ドボン！';
-  $('result-text').textContent = r.type === 'kaeshi'
-    ? `${nameOf(r.declarer)} のドボンを ${nameOf(r.winner)} が返した！（${cardText(r.card)}）`
-    : `${nameOf(r.winner)} が ${nameOf(r.loser)} の ${cardText(r.card)} にドボン！`;
+  $('result-stamp').textContent = RESULT_TITLE[r.type] || 'ドボン！';
+  const W = nameOf(r.winner); const L = nameOf(r.loser);
+  $('result-text').textContent = {
+    dobon: `${W} が ${L} の ${cardText(r.card)} にドボン！`,
+    kaeshi: `${nameOf(r.declarer)} のドボンを ${W} が返した！（${cardText(r.card)}）`,
+    hiki: `${W} が引きドボンで ${r.target} ちょうど！ 逆転勝ち`,
+    burst: `${L} の引きドボンは ${r.target} を超えてしまった…`,
+  }[r.type] || '';
+
+  // 得点の内訳
+  const pts = $('result-points'); pts.replaceChildren();
+  const formula = [`${cardText(r.card)} → ${r.target}点`];
+  r.mults.forEach((k) => formula.push(`× ${MULTIPLIERS[k].x}（${MULTIPLIERS[k].label}）`));
+  pts.append(el('span', 'formula', formula.join(' ')), el('b', '', ` ＝ ${r.points}点`));
+  pts.append(el('span', 'transfer', `${L} → ${W}`));
+
   const wrap = $('result-hands'); wrap.replaceChildren();
   r.hands.forEach((h, i) => {
     const p = state.players[i];
     const row = el('div', `rh${i === r.winner ? ' win' : ''}${i === r.loser ? ' lose' : ''}`);
     const nm = el('div', 'rh-name', p.name);
-    nm.append(el('small', '', `${i === r.winner ? '勝ち ・ ' : i === r.loser ? '負け ・ ' : ''}${p.wins}勝${p.losses}敗`));
+    const delta = i === r.winner ? `+${r.points}` : i === r.loser ? `-${r.points}` : '±0';
+    nm.append(el('small', '', `${delta} → 計 ${fmtScore(p.score)}`));
     const cards = el('div', 'rh-cards'); h.forEach((c) => cards.append(cardEl(c)));
     row.append(nm, cards, el('div', 'rh-sum', String(h.reduce((s, c) => s + rankOf(c), 0))));
     wrap.append(row);
   });
   const isHost = state.you === state.host;
   $('btn-next').hidden = !isHost;
+  $('btn-lobby').hidden = !isHost;
   $('result-wait').textContent = isHost ? '' : 'ホストが次のラウンドを始めるのを待っています…';
   box.hidden = false;
 }
@@ -828,16 +1203,14 @@ function renderResult(g) {
 function tick() {
   const now = performance.now();
   const bar = $('timer-bar');
-  if (state && state.game && state.game.phase === 'playing') {
+  if (state && state.game && state.game.phase !== 'ended') {
     const left = Math.max(0, turnEnd - now);
     bar.style.width = `${Math.min(100, (left / turnTotal) * 100)}%`;
     bar.classList.toggle('low', left < 8000);
-    const locked = now < lockEnd;
-    $('hand').classList.toggle('locked', locked);
+    $('counter-bar').style.width = bar.style.width;
   } else bar.style.width = '0';
   requestAnimationFrame(tick);
 }
-
 
 // ============================================================ ホスト（審判）側
 function publicRoom(seat) {
@@ -848,8 +1221,9 @@ function publicRoom(seat) {
     you: seat,
     host: 0,
     round: room.round,
-    players: room.seats.map((s) => ({ name: s.name, online: Boolean(s.peer), wins: s.wins, losses: s.losses })),
-    turnMs: g && g.phase === 'playing' ? Math.max(0, room.turnDeadline - Date.now()) : 0,
+    rules: room.rules,
+    players: room.seats.map((s) => ({ name: s.name, online: Boolean(s.peer), wins: s.wins, losses: s.losses, score: s.score })),
+    turnMs: g && g.phase !== 'ended' ? Math.max(0, room.turnDeadline - Date.now()) : 0,
     game: g ? g.viewFor(seat) : null,
   };
 }
@@ -863,8 +1237,8 @@ function hostBroadcast() {
 
 function saveHost() {
   ss.set(HOST_KEY, {
-    code: room.code, round: room.round, scored: room.scored, nextFirst: room.nextFirst,
-    seats: room.seats.map((s) => ({ name: s.name, token: s.token, wins: s.wins, losses: s.losses })),
+    code: room.code, round: room.round, scored: room.scored, nextFirst: room.nextFirst, rules: room.rules,
+    seats: room.seats.map((s) => ({ name: s.name, token: s.token, wins: s.wins, losses: s.losses, score: s.score })),
     game: room.game, keys: hostKeys.jwk,
   });
 }
@@ -872,13 +1246,15 @@ function saveHost() {
 function scheduleTurn() {
   clearTimeout(room.timer);
   const g = room.game;
-  if (!g || g.phase !== 'playing') return;
-  const lockMs = Math.max(0, g.lockUntil - Date.now());
-  const ms = lockMs + (room.seats[g.turn].peer ? TURN_MS : OFFLINE_TURN_MS);
+  if (!g || g.phase === 'ended') return;
+  const who = g.actor();
+  const lockMs = g.phase === 'playing' ? Math.max(0, g.lockUntil - Date.now()) : 0;
+  const base = g.phase === 'counter' ? COUNTER_MS : g.rules.turnSec * 1000;
+  const ms = lockMs + (room.seats[who].peer ? base : OFFLINE_TURN_MS);
   room.turnDeadline = Date.now() + ms;
-  room.turnKey = `${g.turn}:${g.log.length}:${g.hasDrawn}`;
+  room.turnKey = turnKeyOf(g);
   room.timer = setTimeout(() => {
-    if (room && room.game === g && g.phase === 'playing') { g.autoAct(); afterChange(); }
+    if (room && room.game === g && g.phase !== 'ended') { g.autoAct(); afterChange(); }
   }, ms);
   if (lockMs > 0) {
     clearTimeout(room.lockTimer);
@@ -886,16 +1262,22 @@ function scheduleTurn() {
   }
 }
 
+const turnKeyOf = (g) => `${g.phase}:${g.actor()}:${g.log.length}:${g.hasDrawn}`;
+
 function afterChange() {
   const g = room.game;
   if (g && g.phase === 'ended' && !room.scored) {
+    // 得点：勝った人が負けた人から受け取る（合計は常に0）
     room.scored = true;
-    room.seats[g.result.winner].wins += 1;
-    room.seats[g.result.loser].losses += 1;
-    room.nextFirst = g.result.loser;
+    const { winner, loser, points } = g.result;
+    room.seats[winner].wins += 1;
+    room.seats[loser].losses += 1;
+    room.seats[winner].score += points;
+    room.seats[loser].score -= points;
+    room.nextFirst = loser;
     clearTimeout(room.timer);
-  } else if (g && g.phase === 'playing') {
-    if (`${g.turn}:${g.log.length}:${g.hasDrawn}` !== room.turnKey) scheduleTurn();
+  } else if (g && g.phase !== 'ended') {
+    if (turnKeyOf(g) !== room.turnKey) scheduleTurn();
   }
   saveHost();
   hostBroadcast();
@@ -922,13 +1304,13 @@ function hostHandle(peer, msg) {
     if (idx === 0) return; // ホスト席は奪えない
     if (idx > 0) {
       room.seats[idx].peer = peer; // 再接続
-      if (room.game && room.game.turn === idx) scheduleTurn();
+      if (room.game && room.game.actor() === idx) scheduleTurn();
     } else if (room.game) {
       return reply({ t: 'reject', msg: 'この部屋はゲーム中のため参加できません' });
     } else if (room.seats.length >= MAX_PLAYERS) {
       return reply({ t: 'reject', msg: '満員です（4人まで）' });
     } else {
-      room.seats.push({ name, token: msg.token, peer, wins: 0, losses: 0 });
+      room.seats.push({ name, token: msg.token, peer, wins: 0, losses: 0, score: 0 });
     }
     return afterChange();
   }
@@ -943,19 +1325,34 @@ function hostHandle(peer, msg) {
       if (msg.t === 'start' && g) return err('すでに開始しています');
       if (msg.t === 'next' && (!g || g.phase !== 'ended')) return err('まだラウンド中です');
       if (room.seats.length < 2) return err('2人以上必要です（4人推奨）');
-      room.game = new DobonGame(room.seats.length, room.nextFirst % room.seats.length);
+      room.game = new DobonGame(room.seats.length, room.nextFirst % room.seats.length, room.rules);
       room.round += 1; room.scored = false; room.turnKey = '';
+      return afterChange();
+    }
+    case 'lobby': {
+      if (seat !== 0) return err('ホストだけが操作できます');
+      if (!g || g.phase !== 'ended') return err('ラウンド中は戻れません');
+      room.game = null; // 得点はそのまま。ルール変更や参加者の入れ替えができる
+      return afterChange();
+    }
+    case 'rules': {
+      if (seat !== 0) return err('ルールを変えられるのはホストだけです');
+      if (g) return err('ルールは待合室でのみ変更できます');
+      room.rules = sanitizeRules(msg.rules);
       return afterChange();
     }
     case 'play': {
       if (!g) return err('ゲームが始まっていません');
       const suit = msg.suit === undefined ? undefined : (SUITS.includes(msg.suit) ? msg.suit : null);
-      const r = g.play(seat, msg.card, suit);
+      if (!Array.isArray(msg.cards)) return err('不正なカードです');
+      const r = g.play(seat, msg.cards, suit);
       return r.ok ? afterChange() : err(r.err);
     }
     case 'draw':
     case 'pass':
-    case 'dobon': {
+    case 'dobon':
+    case 'challenge':
+    case 'giveup': {
       if (!g) return err('ゲームが始まっていません');
       const r = g[msg.t](seat);
       return r.ok ? afterChange() : err(r.err);
@@ -966,7 +1363,7 @@ function hostHandle(peer, msg) {
       else {
         const s = room.seats[seat];
         s.peer = null; s.token = null; s.name = `${s.name}(退出)`;
-        if (g.turn === seat) scheduleTurn();
+        if (g.actor() === seat) scheduleTurn();
       }
       return afterChange();
     }
@@ -984,7 +1381,7 @@ function hostOnPeerLeave(peer) {
   if (!room.game) room.seats.splice(i, 1);
   else {
     room.seats[i].peer = null;
-    if (room.game.phase === 'playing' && room.game.turn === i) scheduleTurn();
+    if (room.game.phase !== 'ended' && room.game.actor() === i) scheduleTurn();
   }
   afterChange();
 }
@@ -1014,17 +1411,18 @@ async function startHost(name, saved) {
   ss.set(SESSION_KEY, session);
   room = {
     code, round: 0, scored: false, nextFirst: 0, game: null,
-    seats: [{ name: session.name, token: session.token, peer: SELF, wins: 0, losses: 0 }],
+    rules: { ...DEFAULT_RULES },
+    seats: [{ name: session.name, token: session.token, peer: SELF, wins: 0, losses: 0, score: 0 }],
     timer: null, lockTimer: null, turnDeadline: 0, turnKey: '',
   };
   if (saved) {
-    Object.assign(room, { round: saved.round, scored: saved.scored, nextFirst: saved.nextFirst });
-    room.seats = saved.seats.map((s, i) => ({ ...s, peer: i === 0 ? SELF : null }));
+    Object.assign(room, { round: saved.round, scored: saved.scored, nextFirst: saved.nextFirst, rules: sanitizeRules(saved.rules) });
+    room.seats = saved.seats.map((s, i) => ({ score: 0, ...s, peer: i === 0 ? SELF : null }));
     room.game = saved.game ? DobonGame.fromJSON(saved.game) : null;
   }
   net = await connectRoom(code, {
     onPeerJoin: hostOnPeerJoin, onPeerLeave: hostOnPeerLeave, onMessage: hostOnMessage,
-    onError: () => toast('リレーへの接続でエラーが発生しました'),
+    onError: handleJoinError,
   });
   setConn('P2P待機中（暗号化）', 'ok');
   history.replaceState(null, '', `#room=${code}`);
@@ -1093,13 +1491,71 @@ async function startGuest(code, name, resume) {
   setConn('マッチング中…', '');
   net = await connectRoom(code, {
     onPeerJoin: guestOnPeerJoin, onPeerLeave: guestOnPeerLeave, onMessage: guestOnMessage,
-    onError: () => toast('リレーへの接続でエラーが発生しました'),
+    onError: handleJoinError,
   });
   history.replaceState(null, '', `#room=${code}`);
   searchTimer = setTimeout(() => {
     if (!hostPeer && !state) setHomeStatus('まだ見つかりません。コードが正しいか、ホストがページを開いているか確認してください（探し続けています）');
   }, 25_000);
 }
+
+// ============================================================ 接続エラーの扱い
+let lastNetError = '';
+const reportedErr = new Set();
+/**
+ * Trystero の onJoinError：リレー自体ではなく「特定の相手との WebRTC 直接接続に失敗した」
+ * または「パスワード不一致」で呼ばれる。ゲームに影響する場合だけ利用者に知らせる。
+ */
+function handleJoinError(d) {
+  const msg = typeof d.error === 'string' ? d.error : String(d.error || 'unknown error');
+  const peer = typeof d.peerId === 'string' ? d.peerId : '';
+  console.warn('[P2P] join error:', msg, peer);
+  lastNetError = `${new Date().toLocaleTimeString()} ${msg}`.slice(0, 300);
+  // 参加者：ホスト以外（参加者どうし）の接続失敗はゲームに関係ないので知らせない
+  if (session && session.role === 'guest' && hostPeer && peer !== hostPeer) return;
+  if (reportedErr.has(peer)) return;
+  reportedErr.add(peer);
+  if (/password/i.test(msg)) { toast('部屋コードが一致しない相手の接続を拒否しました'); return; }
+  const hint = getTurn()
+    ? 'TURN サーバーの設定（URL・ユーザー名・パスワード）を確認してください'
+    : '別々のネットワーク（スマホ回線・会社など）同士では、ホーム画面の「接続設定」で TURN サーバーが必要な場合があります';
+  if (session && session.role === 'host') toast(`ある参加者との直接接続に失敗しました。${hint}`);
+  else if (!hostPeer) setHomeStatus(`ホストとの直接接続に失敗しました。${hint}（再試行を続けています）`);
+}
+
+// 左下：バージョンと接続状況
+function updateNetStat() {
+  const parts = [];
+  const r = relayStatus();
+  if (net && r) parts.push(`リレー ${r.open}/${r.total}`);
+  if (net) parts.push(`P2P ${net.peerCount()}`);
+  if (getTurn()) parts.push('TURN有効');
+  const ns = $('netstat');
+  ns.textContent = parts.join(' ・ ');
+  const e = $('neterr');
+  e.hidden = !lastNetError;
+  e.title = lastNetError;
+}
+setInterval(updateNetStat, 1500);
+$('neterr').addEventListener('click', () => { if (lastNetError) toast(lastNetError); });
+
+// 接続設定（TURN）
+function loadTurnForm() {
+  const t = getTurn();
+  $('turn-url').value = t ? t.url : '';
+  $('turn-user').value = t ? t.username || '' : '';
+  $('turn-pass').value = t ? t.credential || '' : '';
+}
+$('btn-turn-save').addEventListener('click', () => {
+  const url = $('turn-url').value.trim();
+  if (!url) { setTurn(null); toast('TURN 設定を削除しました'); updateNetStat(); return; }
+  if (!/^turns?:[^\s"'<>]{3,200}$/.test(url)) { toast('URL は turn: または turns: で始めてください'); return; }
+  setTurn({ url, username: $('turn-user').value.trim().slice(0, 200), credential: $('turn-pass').value.slice(0, 200) });
+  toast(net ? '保存しました（次に部屋に入ったときから有効）' : 'TURN 設定を保存しました');
+  updateNetStat();
+});
+$('btn-turn-clear').addEventListener('click', () => { setTurn(null); loadTurnForm(); toast('TURN 設定を削除しました'); updateNetStat(); });
+loadTurnForm();
 
 // ============================================================ 共通
 function applyState(m) {
@@ -1121,7 +1577,7 @@ function exitRoom() {
   if (room) { clearTimeout(room.timer); clearTimeout(room.lockTimer); }
   if (net) net.leave();
   net = null; room = null; hostPeer = null; state = null; session = null; lastTop = null;
-  pendingHosts.clear(); buckets.clear();
+  pendingHosts.clear(); buckets.clear(); reportedErr.clear();
   ss.del(SESSION_KEY); ss.del(HOST_KEY);
   history.replaceState(null, '', location.pathname + location.search);
   $('result').hidden = true;
@@ -1141,17 +1597,42 @@ function leaveRoom() {
 }
 
 // ------------------------------------------------------------ 操作
-function playCard(id) {
-  if (performance.now() < lockEnd) { toast('ドボン受付中…少し待ってください'); return; }
-  if (rankOf(id) === 8) { pendingEight = id; $('suit-dialog').showModal(); return; }
-  act({ t: 'play', card: id });
+function lockedToast() {
+  if (performance.now() < lockEnd) { toast('ドボン受付中…少し待ってください'); return true; }
+  return false;
 }
+function submitPlay(ids) {
+  if (lockedToast()) return;
+  const g = state.game;
+  selected = [];
+  if (rankOf(ids[0]) === 8 && g.rules.wild8) { pendingPlay = ids; $('suit-dialog').showModal(); renderGame(); return; }
+  act({ t: 'play', cards: ids });
+  renderGame();
+}
+/** カードをクリック：重ね出しできるときは選択、そうでなければすぐ出す */
+function onCardClick(id) {
+  const g = state.game;
+  if (!g || lockedToast()) return;
+  if (selected.length === 0) {
+    if (!g.playable.includes(id)) return;
+    const mates = g.rules.stack ? g.hand.filter((c) => c !== id && rankOf(c) === rankOf(id)) : [];
+    if (mates.length && g.hand.length >= 3) { selected = [id]; renderGame(); return; }
+    submitPlay([id]);
+    return;
+  }
+  const i = selected.indexOf(id);
+  if (i >= 0) selected.splice(i, 1);
+  else if (rankOf(id) === rankOf(selected[0]) && g.hand.length - selected.length - 1 >= 1) selected.push(id);
+  renderGame();
+}
+$('btn-play').addEventListener('click', () => { if (selected.length) submitPlay([...selected]); });
+$('btn-unselect').addEventListener('click', () => { selected = []; renderGame(); });
 document.querySelectorAll('.suit-btn').forEach((b) => b.addEventListener('click', () => {
   $('suit-dialog').close();
-  if (pendingEight !== null) act({ t: 'play', card: pendingEight, suit: b.dataset.suit });
-  pendingEight = null;
+  if (pendingPlay) act({ t: 'play', cards: pendingPlay, suit: b.dataset.suit });
+  pendingPlay = null;
 }));
-$('suit-cancel').addEventListener('click', () => { pendingEight = null; $('suit-dialog').close(); });
+$('suit-cancel').addEventListener('click', () => { pendingPlay = null; $('suit-dialog').close(); });
 
 function myName() {
   const v = cleanName($('name').value);
@@ -1184,14 +1665,20 @@ $('btn-leave-game').addEventListener('click', () => {
   const host = session && session.role === 'host';
   if (confirm(host ? 'ホストが抜けると対局が終了します。部屋を閉じますか？' : '対局から退出しますか？（以降は自動でパスされます）')) leaveRoom();
 });
-$('deck').addEventListener('click', () => {
-  if (performance.now() < lockEnd) { toast('ドボン受付中…少し待ってください'); return; }
-  act({ t: 'draw' });
-});
+const doDraw = () => { if (!lockedToast()) { selected = []; act({ t: 'draw' }); } };
+$('deck').addEventListener('click', doDraw);
+$('btn-draw').addEventListener('click', doDraw);
+$('btn-challenge').addEventListener('click', () => act({ t: 'challenge' }));
+$('btn-giveup').addEventListener('click', () => act({ t: 'giveup' }));
+$('btn-lobby').addEventListener('click', () => act({ t: 'lobby' }));
+$('btn-rules').addEventListener('click', () => { renderRulesDoc(); const d = $('rules-dialog'); d.showModal(); $('rules-title').focus(); d.scrollTop = 0; });
+$('rules-close').addEventListener('click', () => $('rules-dialog').close());
+$('btn-rules-lobby').addEventListener('click', () => $('btn-rules').click());
 $('btn-pass').addEventListener('click', () => act({ t: 'pass' }));
 $('btn-dobon').addEventListener('click', () => act({ t: 'dobon' }));
 document.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return;
+  if (document.querySelector('dialog[open]')) return;
   if (e.key === 'd' || e.key === 'D') $('btn-dobon').click();
 });
 $('btn-copy').addEventListener('click', async () => {
@@ -1227,7 +1714,10 @@ $('btn-copy').addEventListener('click', async () => {
 <body>
   <header class="topbar">
     <h1 class="logo">ドボン<small>DOBON</small></h1>
-    <span id="conn" class="conn">オフライン</span>
+    <div class="topbar-right">
+      <button id="btn-rules" class="btn small" type="button">📖 ルール</button>
+      <span id="conn" class="conn">オフライン</span>
+    </div>
   </header>
 
   <main>
@@ -1250,18 +1740,17 @@ $('btn-copy').addEventListener('click', async () => {
       </div>
 
       <details class="panel rules">
-        <summary>ルール</summary>
-        <ul>
-          <li>各自5枚配ります。場のカードと<b>同じマーク</b>か<b>同じ数字</b>を1枚出します。</li>
-          <li>出せないとき（出したくないとき）は山札から1枚引き、出せるなら出すかパスします。</li>
-          <li><b>最後の1枚は出せません</b>。勝つ方法は「ドボン」だけです。</li>
-          <li>誰かがカードを出したとき、<b>自分の手札の合計 = そのカードの数字</b>なら「ドボン！」で勝ち。出した人の負けです（A=1, J=11, Q=12, K=13）。</li>
-          <li>ドボンされた人の手札合計も同じ数なら<b>返しドボン</b>で逆転します。</li>
-          <li>役札：<b>A</b>=次の人をスキップ／<b>2</b>=次の人は2枚引く（2を重ねて回避・累積）／<b>8</b>=いつでも出せてマークを指定／<b>J</b>=順番を逆回り。</li>
-          <li>カードが出た直後の約1.5秒は次の人が動けません（ドボン受付時間）。持ち時間は30秒です。</li>
-          <li>部屋を作った人（ホスト）のブラウザが審判役になります。ホストが閉じると対局が止まるので、ホストは最後までページを開いておいてください。</li>
-        </ul>
+        <summary>接続設定（つながらないとき）</summary>
+        <p class="muted">同じ Wi-Fi やふつうの家庭回線どうしなら設定は不要です。スマホ回線・会社や学校のネットワークなどで「直接接続に失敗」と出る場合は、TURN サーバー（中継サーバー）を設定してください。<b>ホストだけが設定すれば</b>通常は全員つながります。設定はこの端末のブラウザにだけ保存されます。</p>
+        <label class="field"><span>TURN URL</span><input id="turn-url" autocomplete="off" placeholder="turn:turn.example.com:3478"></label>
+        <label class="field"><span>ユーザー名</span><input id="turn-user" autocomplete="off"></label>
+        <label class="field"><span>パスワード</span><input id="turn-pass" type="password" autocomplete="off"></label>
+        <div class="row">
+          <button id="btn-turn-save" class="btn small" type="button">保存</button>
+          <button id="btn-turn-clear" class="btn ghost small" type="button">削除</button>
+        </div>
       </details>
+
     </section>
 
     <!-- 待合室 -->
@@ -1271,6 +1760,8 @@ $('btn-copy').addEventListener('click', async () => {
         <p id="lobby-code" class="big-code"></p>
         <button id="btn-copy" class="btn small">招待リンクをコピー</button>
         <ol id="lobby-seats" class="seats-list"></ol>
+        <div id="rule-editor" class="rule-editor"></div>
+        <button id="btn-rules-lobby" class="btn ghost small" type="button">ルールの詳細を見る</button>
         <button id="btn-start" class="btn primary">ゲーム開始</button>
         <p id="lobby-wait" class="muted center"></p>
         <p class="muted center">サーバーなし・P2P直接通信（WebRTC / 暗号化）</p>
@@ -1309,9 +1800,13 @@ $('btn-copy').addEventListener('click', async () => {
             <span id="me-score" class="score"></span>
           </div>
           <div id="hand" class="hand"></div>
+          <p id="hand-hint" class="hand-hint"></p>
           <div class="actions">
-            <button id="btn-pass" class="btn">パス</button>
-            <button id="btn-dobon" class="btn dobon">ドボン！</button>
+            <button id="btn-draw" class="btn" type="button">ドロー</button>
+            <button id="btn-pass" class="btn" type="button">パス</button>
+            <button id="btn-play" class="btn primary" type="button" hidden>出す</button>
+            <button id="btn-unselect" class="btn ghost" type="button" hidden>選択解除</button>
+            <button id="btn-dobon" class="btn dobon" type="button">ドボン！</button>
           </div>
         </div>
       </div>
@@ -1335,17 +1830,49 @@ $('btn-copy').addEventListener('click', async () => {
     <button type="button" id="suit-cancel" class="btn ghost small">やめる</button>
   </dialog>
 
+  <!-- ドボン返し（引きドボン）の判断 -->
+  <div id="counter" class="result" hidden>
+    <div class="result-box">
+      <p class="stamp">ドボン！</p>
+      <p id="counter-text" class="result-text"></p>
+      <p id="counter-info" class="counter-info"></p>
+      <div id="counter-drawn" class="counter-drawn"></div>
+      <div id="counter-actions" class="row center-row" hidden>
+        <button id="btn-challenge" class="btn primary" type="button">引きドボンに挑戦（1枚引く）</button>
+        <button id="btn-giveup" class="btn" type="button">あきらめる</button>
+      </div>
+      <p id="counter-wait" class="muted center"></p>
+      <div class="timer wide"><div id="counter-bar"></div></div>
+    </div>
+  </div>
+
+  <!-- ルール説明 -->
+  <dialog id="rules-dialog" class="rules-dialog">
+    <h2 id="rules-title" tabindex="-1">ドボンのルール</h2>
+    <div id="rules-body"></div>
+    <button id="rules-close" class="btn primary" type="button">閉じる</button>
+  </dialog>
+
   <!-- 結果 -->
   <div id="result" class="result" hidden>
     <div class="result-box">
       <p id="result-stamp" class="stamp"></p>
       <p id="result-text" class="result-text"></p>
+      <p id="result-points" class="result-points"></p>
       <div id="result-hands" class="result-hands"></div>
-      <button id="btn-next" class="btn primary">次のラウンド</button>
+      <div class="row center-row">
+        <button id="btn-next" class="btn primary" type="button">次のラウンド</button>
+        <button id="btn-lobby" class="btn" type="button">待合室へ（ルール変更）</button>
+      </div>
       <p id="result-wait" class="muted center"></p>
     </div>
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <footer class="footer-status">
+    <span id="version">v2.2.0 ・ build 2026-11-15 00:40</span>
+    <span id="netstat"></span>
+    <button id="neterr" class="neterr" type="button" hidden>⚠ 接続エラーあり（クリックで詳細）</button>
+  </footer>
 </body>
 </html>
